@@ -1,8 +1,10 @@
 import re
 from typing import Optional
 from bs4 import BeautifulSoup, Tag, NavigableString
+import soupsieve as sv
 from .client import ChpClient
 from .models import CompareResult, StoreOffer
+from .product import search_product
 
 _ZERO_WIDTH_CHARS = re.compile(r"[\u200b\u200c\u200d\u200e\u200f]")
 
@@ -14,7 +16,10 @@ def _strip_zw(text: str) -> str:
 def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
     selector = selector.strip()
     props = props.strip()
-    display_none = "display:none" in props.replace(" ", "").lower()
+    normalized_props = props.replace(" ", "").lower()
+    hidden = "display:none" in normalized_props or "visibility:hidden" in normalized_props
+
+    base_rule = {"selector": selector, "hidden": hidden}
 
     # CHP injects decoy letters into result cells and hides them with CSS such as
     # [data-x="abc"] { display: none }. Parse only those visibility rules and
@@ -32,7 +37,8 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
             "attr_name": f"data-{m.group(2)}".lower(),
             "attr_value": m.group(3),
             "has_id": m.group(1),
-            "display_none": display_none,
+            "display_none": hidden,
+            **base_rule,
             "specificity": 3,
         }
 
@@ -46,7 +52,8 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
             "attr_name": f"data-{m.group(2)}".lower(),
             "attr_value": m.group(3),
             "has_id": None,
-            "display_none": display_none,
+            "display_none": hidden,
+            **base_rule,
             "specificity": 2,
         }
 
@@ -60,9 +67,17 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
             "attr_name": f"data-{m.group(1)}".lower(),
             "attr_value": m.group(2),
             "has_id": None,
-            "display_none": display_none,
+            "display_none": hidden,
+            **base_rule,
             "specificity": 1,
         }
+
+    # Keep broader display/visibility hiding selectors even when they are not
+    # one of CHP's older data-attribute obfuscation patterns. The compare page
+    # often hides decoy Latin letters inside Hebrew names with class selectors,
+    # so selector matching is required to avoid corrupting RTL text.
+    if hidden:
+        return {**base_rule, "specificity": 0}
 
     return None
 
@@ -85,6 +100,8 @@ def _element_visible(
     tag = tag.lower()
     matching = []
     for rule in rules:
+        if "attr_name" not in rule or "attr_value" not in rule:
+            continue
         if rule["attr_value"] != attrs.get(rule["attr_name"]):
             continue
         if rule["has_id"] is not None and rule["has_id"] != el_id:
@@ -108,11 +125,34 @@ def _data_attrs(tag: Tag) -> dict[str, str]:
     return attrs
 
 
+def _has_hidden_inline_style(node: Tag) -> bool:
+    style = node.get("style", "")
+    if not isinstance(style, str):
+        return False
+    normalized = style.replace(" ", "").lower()
+    return "display:none" in normalized or "visibility:hidden" in normalized
+
+
+def _matches_hidden_selector(node: Tag, rules: list[dict]) -> bool:
+    for rule in rules:
+        if not rule.get("hidden") or not rule.get("selector"):
+            continue
+        try:
+            if sv.match(rule["selector"], node):
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def _extract_visible_text(node: Tag | NavigableString, rules: list[dict]) -> str:
     if isinstance(node, NavigableString):
         return _strip_zw(str(node))
 
     if node.name in {"script", "style"}:
+        return ""
+
+    if _has_hidden_inline_style(node) or _matches_hidden_selector(node, rules):
         return ""
 
     if not _element_visible(node.name, _data_attrs(node), node.get("id"), rules):
@@ -198,7 +238,7 @@ def _parse_offers_table(
     return offers
 
 
-async def compare(
+async def _compare_once(
     client: ChpClient,
     barcode: str,
     product_name: str,
@@ -263,3 +303,66 @@ async def compare(
         online_stores=online,
         total_count=total_count,
     )
+
+
+def _has_offers(result: CompareResult) -> bool:
+    return bool(result.physical_stores or result.online_stores)
+
+
+async def compare(
+    client: ChpClient,
+    barcode: str,
+    product_name: str,
+    city_id: str = "0",
+    street_id: str = "0",
+    from_: int = 0,
+    num_results: int = 20,
+) -> CompareResult:
+    result = await _compare_once(
+        client,
+        barcode=barcode,
+        product_name=product_name,
+        city_id=city_id,
+        street_id=street_id,
+        from_=from_,
+        num_results=num_results,
+    )
+    if _has_offers(result):
+        return result
+
+    # A saved grocery-list item can outlive the location in which it was added.
+    # When CHP rejects the stored barcode for the new shopping area, retry by
+    # name and then with the first matching barcode from the current area.
+    tried_barcodes = {barcode}
+    if barcode:
+        result = await _compare_once(
+            client,
+            barcode="",
+            product_name=product_name,
+            city_id=city_id,
+            street_id=street_id,
+            from_=from_,
+            num_results=num_results,
+        )
+        if _has_offers(result):
+            return result
+        tried_barcodes.add("")
+
+    suggestions = await search_product(client, product_name, city_id, street_id)
+    for suggestion in suggestions[:3]:
+        if suggestion.barcode in tried_barcodes:
+            continue
+        result = await _compare_once(
+            client,
+            barcode=suggestion.barcode,
+            product_name=suggestion.parts.name_and_contents or suggestion.value or product_name,
+            city_id=city_id,
+            street_id=street_id,
+            from_=from_,
+            num_results=num_results,
+        )
+        if _has_offers(result):
+            return result
+        tried_barcodes.add(suggestion.barcode)
+
+    return result

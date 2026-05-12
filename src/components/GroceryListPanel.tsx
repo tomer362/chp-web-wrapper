@@ -7,9 +7,11 @@ import type { ProductResult } from "../api/client";
 interface Props {
   onCompareList: (listId: string) => void;
   cityId: string;
+  streetId: string;
+  activeCompareListId: string | null;
 }
 
-export function GroceryListPanel({ onCompareList, cityId }: Props) {
+export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompareListId }: Props) {
   const { lists, addList, removeList, addItem, updateItem, removeItem } = useGroceryLists();
   const [newName, setNewName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
               </button>
               <div className="flex shrink-0 items-center gap-2">
                 {list.items.length > 0 && (
-                  <button type="button" onClick={() => onCompareList(list.id)} className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-200">השווה מחירים</button>
+                  <button type="button" onClick={() => onCompareList(list.id)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${activeCompareListId === list.id ? "bg-green-600 text-white" : "bg-green-100 text-green-700 hover:bg-green-200"}`}>השווה מחירים</button>
                 )}
                 <button type="button" onClick={() => removeList(list.id)} aria-label={`מחק את ${list.name}`} className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16} /></button>
               </div>
@@ -125,7 +127,7 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
                 <div className="relative z-10 pt-2">
                   {addingToListId === list.id ? (
                     <div className="space-y-2">
-                      <ProductSearch cityId={cityId} onSelect={(product) => handleProductSelect(list.id, product)} />
+                      <ProductSearch cityId={cityId} streetId={streetId} onSelect={(product) => handleProductSelect(list.id, product)} />
                       <button type="button" onClick={() => setAddingToListId(null)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700">
                         <X size={14} /> ביטול הוספה
                       </button>
