@@ -6,6 +6,8 @@ export interface GroceryItem {
   barcode: string;
   quantity: number;
   checked: boolean;
+  packSize?: string;
+  manufacturerAndBarcode?: string;
   addedPrice?: number;
   addedStore?: string;
 }

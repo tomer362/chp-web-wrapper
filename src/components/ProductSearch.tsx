@@ -36,9 +36,12 @@ export function ProductSearch({ cityId, onSelect }: Props) {
               <img src={`data:image/png;base64,${prod.parts.small_image}`} alt="" className="w-8 h-8 object-contain rounded" />
             )}
             <div className="flex-1 min-w-0">
-              <div className="truncate font-medium">{prod.parts?.name_and_contents || prod.label}</div>
+              <div className="whitespace-normal break-words font-medium leading-5">{prod.parts?.name_and_contents || prod.label}</div>
+              {prod.parts?.pack_size && (
+                <div className="text-xs font-medium text-gray-600">כמות/יחידה: {prod.parts.pack_size}</div>
+              )}
               {prod.parts?.manufacturer_and_barcode && (
-                <div className="text-xs text-gray-500 truncate">{prod.parts.manufacturer_and_barcode}</div>
+                <div className="whitespace-normal break-words text-xs text-gray-500">{prod.parts.manufacturer_and_barcode}</div>
               )}
             </div>
             {prod.parts?.price_range && (

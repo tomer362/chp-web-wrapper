@@ -3,11 +3,14 @@ import type { StoreOffer } from "../api/client";
 
 interface Props {
   store: StoreOffer;
+  quantity?: number;
   showAddButton?: boolean;
   onAddToList?: () => void;
 }
 
-export function StoreRow({ store, showAddButton, onAddToList }: Props) {
+export function StoreRow({ store, quantity = 1, showAddButton, onAddToList }: Props) {
+  const totalPrice = store.price * quantity;
+
   return (
     <tr className="border-b border-gray-100 hover:bg-blue-50/50 transition">
       <td className="py-3 px-3">
@@ -27,10 +30,9 @@ export function StoreRow({ store, showAddButton, onAddToList }: Props) {
       </td>
       <td className="py-3 px-3">
         {store.deal ? (
-          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded-full" title={store.deal}>
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800" title={store.deal}>
             <Tag size={12} />
-            {store.deal.split("|")[0].trim().slice(0, 20)}
-            {store.deal.length > 20 ? "..." : ""}
+            <span className="max-w-48 whitespace-normal break-words">{store.deal.split("|")[0].trim()}</span>
           </span>
         ) : (
           <span className="text-gray-300 text-xs">—</span>
@@ -39,6 +41,12 @@ export function StoreRow({ store, showAddButton, onAddToList }: Props) {
       <td className="py-3 px-3 text-left" dir="ltr">
         <span className="text-lg font-bold text-gray-900">₪{store.price.toFixed(2)}</span>
       </td>
+      {quantity > 1 && (
+        <td className="py-3 px-3 text-left" dir="ltr">
+          <div className="text-lg font-bold text-green-700">₪{totalPrice.toFixed(2)}</div>
+          <div className="text-xs text-gray-400">× {quantity}</div>
+        </td>
+      )}
       {showAddButton && (
         <td className="py-3 px-3">
           <button onClick={onAddToList} className="text-xs bg-gray-100 hover:bg-blue-600 hover:text-white text-gray-600 px-2.5 py-1.5 rounded transition">+ הוסף</button>

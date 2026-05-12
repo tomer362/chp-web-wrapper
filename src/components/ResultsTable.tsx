@@ -5,13 +5,14 @@ import type { StoreOffer, CompareResult } from "../api/client";
 
 interface Props {
   result: CompareResult;
+  quantity?: number;
   onAddToList?: (store: StoreOffer) => void;
 }
 
 type SortKey = "price" | "chain";
 type Tab = "physical" | "online";
 
-export function ResultsTable({ result, onAddToList }: Props) {
+export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
   const [tab, setTab] = useState<Tab>("physical");
   const [sortKey, setSortKey] = useState<SortKey>("price");
 
@@ -27,11 +28,15 @@ export function ResultsTable({ result, onAddToList }: Props) {
   }
 
   const cheapest = sorted.length > 0 ? sorted[0].price : 0;
+  const cheapestTotal = cheapest * quantity;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-gray-900">{result.product_name}</h2>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{result.product_name}</h2>
+          {quantity > 1 && <p className="text-sm text-gray-500">כמות ברשימה: {quantity} יחידות</p>}
+        </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={() => setTab("physical")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === "physical" ? "bg-white shadow text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
             <Store size={16} /> פיזי ({result.physical_stores.length})
@@ -53,12 +58,13 @@ export function ResultsTable({ result, onAddToList }: Props) {
               <th className="py-3 px-3 text-left cursor-pointer select-none hover:text-gray-700" onClick={() => setSortKey(sortKey === "price" ? "chain" : "price")}>
                 <span className="inline-flex items-center gap-1">מחיר <ArrowUpDown size={12} /></span>
               </th>
+              {quantity > 1 && <th className="py-3 px-3 text-left">סה״כ</th>}
               {onAddToList && <th className="py-3 px-3 w-16" />}
             </tr>
           </thead>
           <tbody>
             {sorted.map((s, i) => (
-              <StoreRow key={`${s.chain}-${s.store_name}-${i}`} store={s} showAddButton={!!onAddToList} onAddToList={() => onAddToList?.(s)} />
+              <StoreRow key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} showAddButton={!!onAddToList} onAddToList={() => onAddToList?.(s)} />
             ))}
           </tbody>
         </table>
@@ -67,6 +73,7 @@ export function ResultsTable({ result, onAddToList }: Props) {
       {cheapest > 0 && (
         <div className="mt-3 text-xs text-gray-500 text-center">
           הזול ביותר: <span className="font-bold text-green-600">₪{cheapest.toFixed(2)}</span>
+          {quantity > 1 && <> | סה״כ לכמות: <span className="font-bold text-green-600">₪{cheapestTotal.toFixed(2)}</span></>}
           {" — "}{sorted[0]?.chain} / {sorted[0]?.store_name}
           {sorted.length > 1 && <> | הפרש מהיקר ביותר: ₪{(sorted[sorted.length - 1].price - cheapest).toFixed(2)}</>}
         </div>
