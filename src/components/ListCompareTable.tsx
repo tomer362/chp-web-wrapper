@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { comparePrices, type CompareResult, type StoreOffer } from "../api/client";
-import { Loader, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store } from "lucide-react";
 
 interface Props {
   listId: string | null;
@@ -33,6 +33,8 @@ interface BasketSummary extends Omit<BasketStore, "providedProducts"> {
   missingProducts: string[];
 }
 
+type StoreType = "online" | "physical";
+
 function storeKey(store: StoreOffer) {
   return [store.chain, store.store_name, store.address || store.website_url || ""].join("|");
 }
@@ -50,6 +52,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
   const list = listId ? getList(listId) : undefined;
   const [results, setResults] = useState<ItemResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [storeType, setStoreType] = useState<StoreType>("online");
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +107,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
     const stores = new Map<string, BasketStore>();
 
     results.forEach((item, itemIndex) => {
-      const storesForItem = item.result ? [...item.result.physical_stores, ...item.result.online_stores] : [];
+      const storesForItem = item.result ? item.result[storeType === "online" ? "online_stores" : "physical_stores"] : [];
       const keyForItem = productKey(item, itemIndex);
 
       storesForItem.forEach((store) => {
@@ -147,7 +150,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
         }
         return a.total - b.total;
       });
-  }, [results]);
+  }, [results, storeType]);
 
   const unavailableProducts = results.filter((item) => !item.result).map((item) => item.productName);
 
@@ -168,12 +171,22 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
           <h2 className="text-xl font-bold text-gray-900">השוואת סל: {list.name}</h2>
           <p className="text-sm text-gray-500">ההשוואה רצה אוטומטית עבור {addressLabel} ומתעדכנת כשמשנים איזור.</p>
         </div>
-        <div className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
-          {loading ? (
-            <span className="inline-flex items-center gap-2"><Loader size={16} className="animate-spin" /> מחשב סל...</span>
-          ) : (
-            <span>{list.items.length} מוצרים</span>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+            <button type="button" onClick={() => setStoreType("online")} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${storeType === "online" ? "bg-white text-blue-700 shadow" : "text-gray-500 hover:text-gray-700"}`}>
+              <Monitor size={16} /> אונליין
+            </button>
+            <button type="button" onClick={() => setStoreType("physical")} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${storeType === "physical" ? "bg-white text-blue-700 shadow" : "text-gray-500 hover:text-gray-700"}`}>
+              <Store size={16} /> פיזי
+            </button>
+          </div>
+          <div className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+            {loading ? (
+              <span className="inline-flex items-center gap-2"><Loader size={16} className="animate-spin" /> מחשב סל...</span>
+            ) : (
+              <span>{list.items.length} מוצרים</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -186,7 +199,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
 
       {!loading && results.length > 0 && basketSummaries.length === 0 && (
         <div className="rounded-xl border bg-white p-5 text-center text-sm text-gray-500 shadow-sm">
-          לא נמצאו חנויות שמספקות את המוצרים ברשימה.
+          לא נמצאו {storeType === "online" ? "חנויות אונליין" : "חנויות פיזיות"} שמספקות את המוצרים ברשימה.
         </div>
       )}
 
@@ -194,7 +207,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
         <div>
           <div className="mb-4">
             <h3 className="text-lg font-bold text-gray-900">סה״כ סל לפי חנות</h3>
-            <p className="text-sm text-gray-500">מוצגות חנויות עם מחיר סל כולל. אם חסרים מוצרים בחנות, הם מופיעים מתחת למחיר.</p>
+            <p className="text-sm text-gray-500">מוצגות {storeType === "online" ? "חנויות אונליין" : "חנויות פיזיות"} עם מחיר סל כולל. אם חסרים מוצרים בחנות, הם מופיעים מתחת למחיר.</p>
           </div>
 
           {unavailableProducts.length > 0 && (
