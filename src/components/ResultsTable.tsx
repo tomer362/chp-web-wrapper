@@ -47,8 +47,14 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <table className="w-full">
+      <div className="space-y-3 sm:hidden">
+        {sorted.map((s, i) => (
+          <MobileStoreCard key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} onAddToList={onAddToList ? () => onAddToList(s) : undefined} />
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border bg-white shadow-sm sm:block">
+        <table className="w-full min-w-[760px]">
           <thead>
             <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
               <th className="py-3 px-3 text-right">רשת</th>
@@ -78,6 +84,46 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
           {sorted.length > 1 && <> | הפרש מהיקר ביותר: ₪{(sorted[sorted.length - 1].price - cheapest).toFixed(2)}</>}
         </div>
       )}
+    </div>
+  );
+}
+
+function MobileStoreCard({ store, quantity, onAddToList }: { store: StoreOffer; quantity: number; onAddToList?: () => void }) {
+  const totalPrice = store.price * quantity;
+  const location = store.website_url ? store.website_url.replace(/https?:\/\//, "").split("/")[0] : store.address || "";
+
+  return (
+    <div className="rounded-xl border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-bold text-gray-900">{store.chain}</div>
+          <div className="mt-1 text-sm text-gray-600">{store.store_name}</div>
+        </div>
+        <div className="shrink-0 text-left" dir="ltr">
+          <div className="text-2xl font-bold text-gray-900">₪{store.price.toFixed(2)}</div>
+          {quantity > 1 && <div className="text-xs text-gray-400">× {quantity}</div>}
+        </div>
+      </div>
+
+      {location && (
+        <div className="mt-3 break-words text-sm text-gray-500" dir="auto">
+          {store.website_url ? (
+            <a href={store.website_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline-offset-2 hover:underline">
+              {location}
+            </a>
+          ) : location}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        {store.deal ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800" title={store.deal}>
+            {store.deal.split("|")[0].trim()}
+          </span>
+        ) : <span className="text-xs text-gray-300">אין מבצע</span>}
+        {quantity > 1 && <span className="text-sm font-bold text-green-700" dir="ltr">סה״כ ₪{totalPrice.toFixed(2)}</span>}
+        {onAddToList && <button onClick={onAddToList} className="rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-blue-600 hover:text-white">+ הוסף</button>}
+      </div>
     </div>
   );
 }
