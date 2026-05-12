@@ -36,7 +36,30 @@ interface BasketSummary extends Omit<BasketStore, "providedProducts"> {
 type StoreType = "online" | "physical";
 
 function storeKey(store: StoreOffer) {
-  return [store.chain, store.store_name, store.address || store.website_url || ""].join("|");
+  const normalizedUrl = normalizeUrl(store.website_url);
+  if (normalizedUrl) return `online|${normalizedUrl}`;
+
+  return ["physical", normalizeText(store.chain), normalizeText(store.store_name), normalizeText(store.address || "")].join("|");
+}
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFKC")
+    .replace(/[\u200b\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/[.,'\"״׳:;\-–—/\\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeUrl(value?: string) {
+  if (!value) return "";
+  try {
+    const url = new URL(value.startsWith("http") ? value : `https://${value}`);
+    return url.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return normalizeText(value);
+  }
 }
 
 function productKey(item: ItemResult, index: number) {
