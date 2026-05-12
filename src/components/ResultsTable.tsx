@@ -3,6 +3,7 @@ import { Store, Monitor, ArrowUpDown, MoreVertical } from "lucide-react";
 import { StoreRow } from "./StoreRow";
 import type { StoreOffer, CompareResult } from "../api/client";
 import { useUserSettings } from "../context/UserSettingsContext";
+import { storeWebsiteHost, storeWebsiteHref } from "../utils/storeDisplay";
 
 interface Props {
   result: CompareResult;
@@ -101,10 +102,12 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
 
 function MobileStoreCard({ store, quantity, onAddToList, onHideChain }: { store: StoreOffer; quantity: number; onAddToList?: () => void; onHideChain: () => void }) {
   const totalPrice = store.price * quantity;
-  const location = store.website_url ? store.website_url.replace(/https?:\/\//, "").split("/")[0] : store.address || "";
+  const websiteHost = storeWebsiteHost(store.website_url);
+  const websiteHref = storeWebsiteHref(store.website_url);
+  const location = websiteHost || store.address || "";
 
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
+    <div className="relative rounded-xl border bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-bold text-gray-900">{store.chain}</div>
@@ -118,9 +121,9 @@ function MobileStoreCard({ store, quantity, onAddToList, onHideChain }: { store:
 
       {location && (
         <div className="mt-3 break-words text-sm text-gray-500" dir="auto">
-          {store.website_url ? (
-            <a href={store.website_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline-offset-2 hover:underline">
-              {location}
+          {websiteHref ? (
+            <a href={websiteHref} target="_blank" rel="noopener noreferrer" dir="ltr" className="inline-block text-blue-600 underline-offset-2 hover:underline">
+              {websiteHost}
             </a>
           ) : location}
         </div>
@@ -135,11 +138,41 @@ function MobileStoreCard({ store, quantity, onAddToList, onHideChain }: { store:
         {quantity > 1 && <span className="text-sm font-bold text-green-700" dir="ltr">סה״כ ₪{totalPrice.toFixed(2)}</span>}
         <div className="flex flex-wrap gap-2">
           {onAddToList && <button onClick={onAddToList} className="rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-blue-600 hover:text-white">+ הוסף</button>}
-          <button onClick={onHideChain} className="inline-flex items-center gap-1 rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-red-50 hover:text-red-600">
-            <MoreVertical size={13} /> הסתר רשת
-          </button>
         </div>
       </div>
+
+      <StoreActionMenu onHideChain={onHideChain} />
+    </div>
+  );
+}
+
+function StoreActionMenu({ onHideChain }: { onHideChain: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="absolute left-2 top-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="פעולות לחנות"
+        className="rounded-full bg-white/90 p-1.5 text-gray-400 shadow-sm ring-1 ring-gray-100 transition hover:bg-gray-50 hover:text-gray-700"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-9 z-20 w-44 rounded-xl border bg-white p-1 text-right shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              onHideChain();
+              setOpen(false);
+            }}
+            className="w-full rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-600"
+          >
+            הסתר רשת זו מהשוואות
+          </button>
+        </div>
+      )}
     </div>
   );
 }

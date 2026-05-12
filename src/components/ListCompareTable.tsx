@@ -4,6 +4,7 @@ import { comparePrices, type CompareResult, type StoreOffer } from "../api/clien
 import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store, ChevronDown, MoreVertical } from "lucide-react";
 import { quantityLabel } from "../utils/groceryUnits";
 import { useUserSettings } from "../context/UserSettingsContext";
+import { storeWebsiteHost, storeWebsiteHref } from "../utils/storeDisplay";
 
 interface Props {
   listId: string | null;
@@ -81,8 +82,19 @@ function productKey(item: ItemResult, index: number) {
   return `${index}-${item.productName}`;
 }
 
-function displayLocation(store: Pick<BasketSummary, "address" | "websiteUrl">) {
-  return store.address || store.websiteUrl || "—";
+function StoreLocation({ store }: { store: Pick<BasketSummary, "address" | "websiteUrl"> }) {
+  const websiteHost = storeWebsiteHost(store.websiteUrl);
+  const websiteHref = storeWebsiteHref(store.websiteUrl);
+
+  if (websiteHref) {
+    return (
+      <a href={websiteHref} target="_blank" rel="noopener noreferrer" dir="ltr" className="inline-block text-blue-600 underline-offset-2 hover:underline">
+        {websiteHost}
+      </a>
+    );
+  }
+
+  return <>{store.address || "—"}</>;
 }
 
 export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Props) {
@@ -284,7 +296,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
               const isComplete = store.missingProducts.length === 0;
 
               return (
-                <div key={store.key} className={`rounded-xl border p-4 ${isComplete ? "border-green-100 bg-green-50/40" : "border-gray-200 bg-white"}`}>
+                <div key={store.key} className={`relative rounded-xl border p-4 ${isComplete ? "border-green-100 bg-green-50/40" : "border-gray-200 bg-white"}`}>
                   <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -292,7 +304,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
                         <h4 className="text-base font-bold text-gray-900">{store.chain}</h4>
                         <span className="text-sm text-gray-500">{store.storeName}</span>
                       </div>
-                      <div className="mt-1 text-sm text-gray-500">{displayLocation(store)}</div>
+                      <div className="mt-1 break-words text-sm text-gray-500"><StoreLocation store={store} /></div>
                       <div className="mt-2 text-sm text-gray-600">זמינים {store.itemCount}/{results.length} מוצרים</div>
                     </div>
 
@@ -330,17 +342,42 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
                     </div>
                   </details>
 
-                  <button
-                    type="button"
-                    onClick={() => settings.setSupermarketEnabled(storeType, store.chain, false)}
-                    className="mt-3 inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600"
-                  >
-                    <MoreVertical size={14} /> הסתר רשת זו מהשוואות
-                  </button>
+                  <StoreActionMenu onHideChain={() => settings.setSupermarketEnabled(storeType, store.chain, false)} />
                 </div>
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StoreActionMenu({ onHideChain }: { onHideChain: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="absolute left-2 top-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="פעולות לחנות"
+        className="rounded-full bg-white/90 p-1.5 text-gray-400 shadow-sm ring-1 ring-gray-100 transition hover:bg-gray-50 hover:text-gray-700"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-9 z-20 w-44 rounded-xl border bg-white p-1 text-right shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              onHideChain();
+              setOpen(false);
+            }}
+            className="w-full rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-600"
+          >
+            הסתר רשת זו מהשוואות
+          </button>
         </div>
       )}
     </div>

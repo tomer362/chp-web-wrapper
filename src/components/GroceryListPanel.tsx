@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Archive, Check, Pencil, Plus, RotateCcw, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
+import { Archive, Check, Pencil, Plus, RefreshCw, RotateCcw, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { ProductSearch } from "./ProductSearch";
 import type { ProductResult } from "../api/client";
@@ -20,6 +20,7 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
   const [showArchived, setShowArchived] = useState(false);
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [replacingItem, setReplacingItem] = useState<{ listId: string; itemId: string } | null>(null);
 
   const visibleLists = lists.filter((list) => Boolean(list.archivedAt) === showArchived);
   const activeCount = lists.filter((list) => !list.archivedAt).length;
@@ -48,6 +49,22 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
       setExpanded(listId);
     },
     [addItem]
+  );
+
+  const handleProductReplace = useCallback(
+    (listId: string, itemId: string, product: ProductResult) => {
+      updateItem(listId, itemId, {
+        productName: product.parts?.name_and_contents || product.label,
+        productSearchValue: product.value || product.label,
+        barcode: product.barcode,
+        quantity: defaultQuantityForProduct(product),
+        packSize: product.parts?.pack_size,
+        manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
+        image: product.parts?.small_image,
+      });
+      setReplacingItem(null);
+    },
+    [updateItem]
   );
 
   const startRename = (listId: string, name: string) => {
@@ -160,59 +177,74 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
 
                 {list.items.map((item) => {
                   const weighted = isWeightedItem(item);
+                  const isReplacing = replacingItem?.listId === list.id && replacingItem.itemId === item.id;
 
                   return (
                     <div key={item.id} className="group grid gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start sm:bg-transparent sm:p-2">
-                      <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-3 text-right sm:grid-cols-[3rem_minmax(0,1fr)]">
-                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-white sm:h-12 sm:w-12">
-                          {item.image ? (
-                            <img src={`data:image/png;base64,${item.image}`} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
-                          ) : (
-                            <ShoppingCart size={20} className="text-gray-300" />
-                          )}
+                      {isReplacing ? (
+                        <div className="min-w-0 sm:col-span-2">
+                          <ProductSearch cityId={cityId} streetId={streetId} onSelect={(product) => handleProductReplace(list.id, item.id, product)} />
+                          <button type="button" onClick={() => setReplacingItem(null)} className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                            <X size={14} /> ביטול החלפה
+                          </button>
                         </div>
-                        <div className="min-w-0">
-                          <div className="line-clamp-2 whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
-                          {(item.packSize || item.manufacturerAndBarcode || weighted) && (
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                              {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
-                              {weighted && <span className="font-medium text-blue-600">מחושב לפי מחיר לק״ג</span>}
-                              {item.manufacturerAndBarcode && <span className="line-clamp-1">{item.manufacturerAndBarcode}</span>}
+                      ) : (
+                        <>
+                          <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-3 text-right sm:grid-cols-[3rem_minmax(0,1fr)]">
+                            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-white sm:h-12 sm:w-12">
+                              {item.image ? (
+                                <img src={`data:image/png;base64,${item.image}`} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
+                              ) : (
+                                <ShoppingCart size={20} className="text-gray-300" />
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={weighted ? 0.05 : 1}
-                            step={weighted ? 0.05 : 1}
-                            inputMode="decimal"
-                            dir="ltr"
-                            aria-label={`כמות עבור ${item.productName}`}
-                            className="w-24 rounded-lg border border-gray-200 bg-white py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(list.id, item.id, { quantity: normalizeQuantity(parseFloat(e.target.value), weighted) })}
-                          />
-                          <span className="shrink-0 text-xs text-gray-500">{quantityLabel(item)}</span>
-                        </div>
-                        {weighted && (
-                          <div className="flex max-w-xs flex-wrap gap-1">
-                            {WEIGHT_PORTIONS.map((portion) => (
-                              <button
-                                key={portion.value}
-                                type="button"
-                                onClick={() => updateItem(list.id, item.id, { quantity: portion.value })}
-                                className={`rounded-full border px-2 py-1 text-xs transition ${item.quantity === portion.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-700"}`}
-                              >
-                                {portion.label}
-                              </button>
-                            ))}
+                            <div className="min-w-0">
+                              <div className="line-clamp-2 whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
+                              {(item.packSize || item.manufacturerAndBarcode || weighted) && (
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                                  {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
+                                  {weighted && <span className="font-medium text-blue-600">מחושב לפי מחיר לק״ג</span>}
+                                  {item.manufacturerAndBarcode && <span className="line-clamp-1">{item.manufacturerAndBarcode}</span>}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={weighted ? 0.05 : 1}
+                                step={weighted ? 0.05 : 1}
+                                inputMode="decimal"
+                                dir="ltr"
+                                aria-label={`כמות עבור ${item.productName}`}
+                                className="w-24 rounded-lg border border-gray-200 bg-white py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(list.id, item.id, { quantity: normalizeQuantity(parseFloat(e.target.value), weighted) })}
+                              />
+                              <span className="shrink-0 text-xs text-gray-500">{quantityLabel(item)}</span>
+                            </div>
+                            {weighted && (
+                              <div className="flex max-w-xs flex-wrap gap-1">
+                                {WEIGHT_PORTIONS.map((portion) => (
+                                  <button
+                                    key={portion.value}
+                                    type="button"
+                                    onClick={() => updateItem(list.id, item.id, { quantity: portion.value })}
+                                    className={`rounded-full border px-2 py-1 text-xs transition ${item.quantity === portion.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-700"}`}
+                                  >
+                                    {portion.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                      <div className="flex justify-self-start">
+                        {!isReplacing && <button type="button" onClick={() => setReplacingItem({ listId: list.id, itemId: item.id })} aria-label={`החלף את ${item.productName}`} className="rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-blue-50 hover:text-blue-600 sm:opacity-0 sm:group-hover:opacity-100"><RefreshCw size={16} /></button>}
+                        <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
                       </div>
-                      <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="justify-self-start rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
                     </div>
                   );
                 })}
