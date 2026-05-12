@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
+import { Archive, Check, Pencil, Plus, RotateCcw, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { ProductSearch } from "./ProductSearch";
 import type { ProductResult } from "../api/client";
@@ -13,10 +13,17 @@ interface Props {
 }
 
 export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompareListId }: Props) {
-  const { lists, addList, removeList, addItem, updateItem, removeItem } = useGroceryLists();
+  const { lists, addList, removeList, renameList, archiveList, unarchiveList, addItem, updateItem, removeItem } = useGroceryLists();
   const [newName, setNewName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [addingToListId, setAddingToListId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  const visibleLists = lists.filter((list) => Boolean(list.archivedAt) === showArchived);
+  const activeCount = lists.filter((list) => !list.archivedAt).length;
+  const archivedCount = lists.length - activeCount;
 
   const handleCreate = () => {
     if (!newName.trim()) return;
@@ -35,12 +42,26 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
         quantity: defaultQuantityForProduct(product),
         packSize: product.parts?.pack_size,
         manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
+        image: product.parts?.small_image,
       });
       setAddingToListId(null);
       setExpanded(listId);
     },
     [addItem]
   );
+
+  const startRename = (listId: string, name: string) => {
+    setEditingListId(listId);
+    setEditingName(name);
+  };
+
+  const saveRename = () => {
+    if (!editingListId) return;
+    const nextName = editingName.trim();
+    if (nextName) renameList(editingListId, nextName);
+    setEditingListId(null);
+    setEditingName("");
+  };
 
   return (
     <div className="space-y-4">
@@ -64,31 +85,68 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
         </button>
       </div>
 
-      {lists.length === 0 && (
+      <div className="flex flex-wrap gap-2 rounded-xl bg-gray-100 p-1 text-sm">
+        <button type="button" onClick={() => setShowArchived(false)} className={`rounded-lg px-3 py-1.5 font-medium transition ${!showArchived ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}>
+          רשימות פעילות ({activeCount})
+        </button>
+        <button type="button" onClick={() => setShowArchived(true)} className={`rounded-lg px-3 py-1.5 font-medium transition ${showArchived ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}>
+          ארכיון ({archivedCount})
+        </button>
+      </div>
+
+      {visibleLists.length === 0 && (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-12 text-center text-gray-400">
           <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium text-gray-500">עדיין אין רשימות קניות</p>
-          <p className="text-sm">צרו רשימה חדשה והתחילו להוסיף מוצרים</p>
+          <p className="font-medium text-gray-500">{showArchived ? "אין רשימות בארכיון" : "עדיין אין רשימות קניות"}</p>
+          {!showArchived && <p className="text-sm">צרו רשימה חדשה והתחילו להוסיף מוצרים</p>}
         </div>
       )}
 
       <div className="space-y-3">
-        {lists.map((list) => (
+        {visibleLists.map((list) => (
           <div key={list.id} className="overflow-visible rounded-xl border bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-2 text-right font-medium text-gray-900 transition hover:text-blue-600"
-                onClick={() => setExpanded(expanded === list.id ? null : list.id)}
-                aria-expanded={expanded === list.id}
-              >
-                <ListChecks size={18} className="shrink-0 text-gray-400" />
-                <span className="truncate">{list.name}</span>
-                <span className="shrink-0 text-xs text-gray-400">({list.items.length})</span>
-              </button>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-right font-medium text-gray-900 transition hover:text-blue-600"
+                  onClick={() => setExpanded(expanded === list.id ? null : list.id)}
+                  aria-expanded={expanded === list.id}
+                >
+                  <ListChecks size={18} className="shrink-0 text-gray-400" />
+                  {editingListId === list.id ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      dir="rtl"
+                      value={editingName}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveRename();
+                        if (e.key === "Escape") setEditingListId(null);
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <span className="truncate">{list.name}</span>
+                  )}
+                  <span className="shrink-0 text-xs text-gray-400">({list.items.length})</span>
+                </button>
+              </div>
               <div className="flex shrink-0 items-center gap-2">
-                {list.items.length > 0 && (
+                {editingListId === list.id ? (
+                  <button type="button" onClick={saveRename} aria-label={`שמור שם עבור ${list.name}`} className="rounded-lg p-2 text-green-600 transition hover:bg-green-50"><Check size={16} /></button>
+                ) : (
+                  <button type="button" onClick={() => startRename(list.id, list.name)} aria-label={`שנה שם של ${list.name}`} className="rounded-lg p-2 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"><Pencil size={16} /></button>
+                )}
+                {!showArchived && list.items.length > 0 && (
                   <button type="button" onClick={() => onCompareList(list.id)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${activeCompareListId === list.id ? "bg-green-600 text-white" : "bg-green-100 text-green-700 hover:bg-green-200"}`}>השווה מחירים</button>
+                )}
+                {showArchived ? (
+                  <button type="button" onClick={() => unarchiveList(list.id)} aria-label={`החזר את ${list.name} מהארכיון`} className="rounded-lg p-2 text-gray-400 transition hover:bg-green-50 hover:text-green-600"><RotateCcw size={16} /></button>
+                ) : (
+                  <button type="button" onClick={() => archiveList(list.id)} aria-label={`העבר את ${list.name} לארכיון`} className="rounded-lg p-2 text-gray-400 transition hover:bg-amber-50 hover:text-amber-600"><Archive size={16} /></button>
                 )}
                 <button type="button" onClick={() => removeList(list.id)} aria-label={`מחק את ${list.name}`} className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16} /></button>
               </div>
@@ -104,16 +162,25 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
                   const weighted = isWeightedItem(item);
 
                   return (
-                    <div key={item.id} className="group grid gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start sm:bg-transparent sm:p-2">
-                      <div className="min-w-0 text-right">
-                        <div className="whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
-                        {(item.packSize || item.manufacturerAndBarcode || weighted) && (
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                            {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
-                            {weighted && <span className="font-medium text-blue-600">מחושב לפי מחיר לק״ג</span>}
-                            {item.manufacturerAndBarcode && <span>{item.manufacturerAndBarcode}</span>}
-                          </div>
-                        )}
+                    <div key={item.id} className="group grid gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start sm:bg-transparent sm:p-2">
+                      <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] gap-3 text-right sm:grid-cols-[3rem_minmax(0,1fr)]">
+                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-white sm:h-12 sm:w-12">
+                          {item.image ? (
+                            <img src={`data:image/png;base64,${item.image}`} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
+                          ) : (
+                            <ShoppingCart size={20} className="text-gray-300" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="line-clamp-2 whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
+                          {(item.packSize || item.manufacturerAndBarcode || weighted) && (
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                              {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
+                              {weighted && <span className="font-medium text-blue-600">מחושב לפי מחיר לק״ג</span>}
+                              {item.manufacturerAndBarcode && <span className="line-clamp-1">{item.manufacturerAndBarcode}</span>}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">

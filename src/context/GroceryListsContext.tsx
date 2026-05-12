@@ -9,6 +9,7 @@ export interface GroceryItem {
   checked: boolean;
   packSize?: string;
   manufacturerAndBarcode?: string;
+  image?: string;
   addedPrice?: number;
   addedStore?: string;
 }
@@ -17,6 +18,7 @@ export interface GroceryList {
   id: string;
   name: string;
   createdAt: number;
+  archivedAt?: number;
   items: GroceryItem[];
 }
 
@@ -25,6 +27,8 @@ interface GroceryListsContextType {
   addList: (name: string) => GroceryList;
   removeList: (id: string) => void;
   renameList: (id: string, name: string) => void;
+  archiveList: (id: string) => void;
+  unarchiveList: (id: string) => void;
   addItem: (listId: string, item: Omit<GroceryItem, "id" | "checked">) => void;
   updateItem: (listId: string, itemId: string, patch: Partial<GroceryItem>) => void;
   removeItem: (listId: string, itemId: string) => void;
@@ -60,6 +64,10 @@ export function GroceryListsProvider({ children }: { children: ReactNode }) {
   const removeList = (id: string) => setLists((prev) => prev.filter((l) => l.id !== id));
   const renameList = (id: string, name: string) =>
     setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)));
+  const archiveList = (id: string) =>
+    setLists((prev) => prev.map((l) => (l.id === id ? { ...l, archivedAt: Date.now() } : l)));
+  const unarchiveList = (id: string) =>
+    setLists((prev) => prev.map((l) => (l.id === id ? { ...l, archivedAt: undefined } : l)));
 
   const addItem = (listId: string, item: Omit<GroceryItem, "id" | "checked">) => {
     const newItem: GroceryItem = { ...item, id: crypto.randomUUID(), checked: false };
@@ -83,7 +91,7 @@ export function GroceryListsProvider({ children }: { children: ReactNode }) {
   const getList = (id: string) => lists.find((l) => l.id === id);
 
   return (
-    <Ctx.Provider value={{ lists, addList, removeList, renameList, addItem, updateItem, removeItem, getList }}>
+    <Ctx.Provider value={{ lists, addList, removeList, renameList, archiveList, unarchiveList, addItem, updateItem, removeItem, getList }}>
       {children}
     </Ctx.Provider>
   );

@@ -13,6 +13,7 @@ export function HomePage() {
   const [result, setResult] = useState<CompareResult | null>(null);
   const [loading, setLoading] = useState(false);
   const { lists, addList, addItem } = useGroceryLists();
+  const activeLists = lists.filter((list) => !list.archivedAt);
   const [showListPicker, setShowListPicker] = useState<StoreOffer | null>(null);
   const [creatingList, setCreatingList] = useState(false);
   const [newListName, setNewListName] = useState("");
@@ -38,6 +39,7 @@ export function HomePage() {
       quantity: defaultQuantityForProduct(product),
       packSize: product.parts?.pack_size,
       manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
+      image: product.parts?.small_image,
       addedPrice: showListPicker.price,
       addedStore: `${showListPicker.chain} - ${showListPicker.store_name}`,
     });
@@ -84,7 +86,7 @@ export function HomePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowListPicker(null)}>
           <div className="bg-white rounded-xl shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold mb-3">הוספה לרשימה</h3>
-            {lists.length === 0 ? (
+            {activeLists.length === 0 ? (
               <div className="space-y-3 mb-3">
                 <p className="text-sm text-gray-500">אין רשימות עדיין. אפשר ליצור רשימה חדשה והמוצר יתווסף אליה מיד.</p>
                 {creatingList ? (
@@ -111,7 +113,7 @@ export function HomePage() {
               </div>
             ) : (
               <ul className="space-y-1 mb-3">
-                {lists.map((l) => (
+                {activeLists.map((l) => (
                   <li key={l.id}><button onClick={() => confirmAdd(l.id)} className="w-full text-right px-3 py-2 hover:bg-gray-100 rounded text-sm">{l.name} ({l.items.length})</button></li>
                 ))}
               </ul>
