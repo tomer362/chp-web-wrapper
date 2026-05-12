@@ -5,6 +5,7 @@ import { ProductSearch } from "../components/ProductSearch";
 import { ResultsTable } from "../components/ResultsTable";
 import { comparePrices, type AddressResult, type ProductResult, type CompareResult, type StoreOffer } from "../api/client";
 import { useGroceryLists } from "../context/GroceryListsContext";
+import { defaultQuantityForProduct } from "../utils/groceryUnits";
 
 export function HomePage() {
   const [address, setAddress] = useState<AddressResult | null>(null);
@@ -34,7 +35,9 @@ export function HomePage() {
       productName: result?.product_name || product.value,
       productSearchValue: product.value || product.label,
       barcode: product.barcode,
-      quantity: 1,
+      quantity: defaultQuantityForProduct(product),
+      packSize: product.parts?.pack_size,
+      manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
       addedPrice: showListPicker.price,
       addedStore: `${showListPicker.chain} - ${showListPicker.store_name}`,
     });

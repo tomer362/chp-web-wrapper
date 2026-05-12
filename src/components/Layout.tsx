@@ -21,7 +21,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
           <Link to="/" className="flex shrink-0 items-center justify-center gap-2 text-lg font-bold text-blue-600 sm:justify-start sm:text-xl">
             <span aria-hidden="true">🏪</span>
-            <span>chp.site</span>
+            <span>super.compare</span>
           </Link>
           <nav className="grid grid-cols-2 gap-2 sm:flex" aria-label="ניווט ראשי">
             {link("/", "השוואת מחירים", Home)}

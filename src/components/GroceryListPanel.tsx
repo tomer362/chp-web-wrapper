@@ -3,6 +3,7 @@ import { Plus, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { ProductSearch } from "./ProductSearch";
 import type { ProductResult } from "../api/client";
+import { defaultQuantityForProduct, isWeightedItem, normalizeQuantity, quantityLabel, WEIGHT_PORTIONS } from "../utils/groceryUnits";
 
 interface Props {
   onCompareList: (listId: string) => void;
@@ -31,7 +32,7 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
         productName: product.parts?.name_and_contents || product.label,
         productSearchValue: product.value || product.label,
         barcode: product.barcode,
-        quantity: 1,
+        quantity: defaultQuantityForProduct(product),
         packSize: product.parts?.pack_size,
         manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
       });
@@ -99,31 +100,55 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
                   <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">הרשימה ריקה. הוסיפו מוצר כדי להתחיל.</p>
                 )}
 
-                {list.items.map((item) => (
-                  <div key={item.id} className="group grid gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center sm:bg-transparent sm:p-2">
-                    <div className="min-w-0 text-right">
-                      <div className="whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
-                      {(item.packSize || item.manufacturerAndBarcode) && (
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                          {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
-                          {item.manufacturerAndBarcode && <span>{item.manufacturerAndBarcode}</span>}
+                {list.items.map((item) => {
+                  const weighted = isWeightedItem(item);
+
+                  return (
+                    <div key={item.id} className="group grid gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start sm:bg-transparent sm:p-2">
+                      <div className="min-w-0 text-right">
+                        <div className="whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
+                        {(item.packSize || item.manufacturerAndBarcode || weighted) && (
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                            {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
+                            {weighted && <span className="font-medium text-blue-600">מחושב לפי מחיר לק״ג</span>}
+                            {item.manufacturerAndBarcode && <span>{item.manufacturerAndBarcode}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={weighted ? 0.05 : 1}
+                            step={weighted ? 0.05 : 1}
+                            inputMode="decimal"
+                            dir="ltr"
+                            aria-label={`כמות עבור ${item.productName}`}
+                            className="w-24 rounded-lg border border-gray-200 bg-white py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(list.id, item.id, { quantity: normalizeQuantity(parseFloat(e.target.value), weighted) })}
+                          />
+                          <span className="shrink-0 text-xs text-gray-500">{quantityLabel(item)}</span>
                         </div>
-                      )}
+                        {weighted && (
+                          <div className="flex max-w-xs flex-wrap gap-1">
+                            {WEIGHT_PORTIONS.map((portion) => (
+                              <button
+                                key={portion.value}
+                                type="button"
+                                onClick={() => updateItem(list.id, item.id, { quantity: portion.value })}
+                                className={`rounded-full border px-2 py-1 text-xs transition ${item.quantity === portion.value ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-700"}`}
+                              >
+                                {portion.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="justify-self-start rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
                     </div>
-                    <input
-                      type="number"
-                      min={1}
-                      inputMode="numeric"
-                      dir="ltr"
-                      aria-label={`כמות עבור ${item.productName}`}
-                      className="w-20 rounded-lg border border-gray-200 bg-white py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(list.id, item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                    />
-                    <span className="shrink-0 text-xs text-gray-500">יחידות לקנייה</span>
-                    <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="justify-self-start rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <div className="relative z-10 pt-2">
                   {addingToListId === list.id ? (

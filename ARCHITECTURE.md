@@ -4,7 +4,7 @@ This document explains how the React website is structured, how state flows thro
 
 ## Overview
 
-`chp.site` is a Hebrew RTL grocery price comparison single-page app. It has two primary user flows:
+`super.compare` is a Hebrew RTL grocery price comparison single-page app. It has two primary user flows:
 
 1. Compare one product across physical and online stores.
 2. Build grocery lists and compare whole baskets across stores.
@@ -128,7 +128,7 @@ interface GroceryItem {
   productName: string;
   productSearchValue?: string;
   barcode: string;
-  quantity: number;
+  quantity: number; // unit count, or kilograms for price-by-weight items
   checked: boolean;
   packSize?: string;
   manufacturerAndBarcode?: string;
@@ -173,6 +173,8 @@ This avoids false missing-products caused by minor text or URL differences betwe
 ## Styling And UX
 
 The app is RTL by default via `dir="rtl"` in `Layout`. Tailwind utility classes drive styling directly in components. The UI emphasizes mobile-friendly controls with larger touch targets in search/list components and responsive grids in page layouts.
+
+Price-by-weight grocery items, such as products whose CHP name includes `מחיר לפי משקל`, use kilogram quantities in basket totals. The list UI offers common portions such as 250g, 500g, 750g, 1kg, 1.5kg, and 2kg while still allowing custom decimal kilogram values.
 
 Design conventions:
 
