@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Loader } from "lucide-react";
+import { Search, Loader, Plus } from "lucide-react";
 import { LocationSearch } from "../components/LocationSearch";
 import { ProductSearch } from "../components/ProductSearch";
 import { ResultsTable } from "../components/ResultsTable";
@@ -11,8 +11,10 @@ export function HomePage() {
   const [product, setProduct] = useState<ProductResult | null>(null);
   const [result, setResult] = useState<CompareResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const { lists, addItem } = useGroceryLists();
+  const { lists, addList, addItem } = useGroceryLists();
   const [showListPicker, setShowListPicker] = useState<StoreOffer | null>(null);
+  const [creatingList, setCreatingList] = useState(false);
+  const [newListName, setNewListName] = useState("");
 
   const handleCompare = async () => {
     if (!address || !product) return;
@@ -37,6 +39,15 @@ export function HomePage() {
       addedStore: `${showListPicker.chain} - ${showListPicker.store_name}`,
     });
     setShowListPicker(null);
+    setCreatingList(false);
+    setNewListName("");
+  };
+
+  const createListAndAdd = () => {
+    const name = newListName.trim();
+    if (!name) return;
+    const list = addList(name);
+    confirmAdd(list.id);
   };
 
   return (
@@ -71,7 +82,30 @@ export function HomePage() {
           <div className="bg-white rounded-xl shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold mb-3">הוספה לרשימה</h3>
             {lists.length === 0 ? (
-              <p className="text-sm text-gray-500 mb-3">אין רשימות. צרו רשימה חדשה קודם.</p>
+              <div className="space-y-3 mb-3">
+                <p className="text-sm text-gray-500">אין רשימות עדיין. אפשר ליצור רשימה חדשה והמוצר יתווסף אליה מיד.</p>
+                {creatingList ? (
+                  <div className="space-y-2">
+                    <input
+                      autoFocus
+                      type="text"
+                      dir="rtl"
+                      placeholder="שם הרשימה..."
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && createListAndAdd()}
+                    />
+                    <button onClick={createListAndAdd} disabled={!newListName.trim()} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50">
+                      צור רשימה והוסף מוצר
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setCreatingList(true)} className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700">
+                    <Plus size={16} /> צור רשימה חדשה
+                  </button>
+                )}
+              </div>
             ) : (
               <ul className="space-y-1 mb-3">
                 {lists.map((l) => (
@@ -79,7 +113,7 @@ export function HomePage() {
                 ))}
               </ul>
             )}
-            <button onClick={() => setShowListPicker(null)} className="text-sm text-gray-500 hover:text-gray-700">ביטול</button>
+            <button onClick={() => { setShowListPicker(null); setCreatingList(false); setNewListName(""); }} className="text-sm text-gray-500 hover:text-gray-700">ביטול</button>
           </div>
         </div>
       )}
