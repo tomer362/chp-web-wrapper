@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { comparePrices, type CompareResult, type StoreOffer } from "../api/client";
-import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store } from "lucide-react";
+import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store, ChevronDown } from "lucide-react";
+import { quantityLabel } from "../utils/groceryUnits";
 
 interface Props {
   listId: string | null;
@@ -14,8 +15,20 @@ interface ItemResult {
   productName: string;
   productSearchValue?: string;
   quantity: number;
+  packSize?: string;
+  manufacturerAndBarcode?: string;
   result: CompareResult | null;
   error?: string;
+}
+
+interface ProductPriceLine {
+  key: string;
+  productName: string;
+  quantity: number;
+  packSize?: string;
+  manufacturerAndBarcode?: string;
+  unitPrice: number;
+  total: number;
 }
 
 interface BasketStore {
@@ -25,6 +38,7 @@ interface BasketStore {
   address?: string;
   websiteUrl?: string;
   providedProducts: Set<string>;
+  productPrices: ProductPriceLine[];
   total: number;
 }
 
@@ -100,6 +114,8 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
             productName: item.productName,
             productSearchValue: item.productSearchValue,
             quantity: item.quantity,
+            packSize: item.packSize,
+            manufacturerAndBarcode: item.manufacturerAndBarcode,
             result: r,
           });
         } catch {
@@ -107,6 +123,8 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
             productName: item.productName,
             productSearchValue: item.productSearchValue,
             quantity: item.quantity,
+            packSize: item.packSize,
+            manufacturerAndBarcode: item.manufacturerAndBarcode,
             result: null,
             error: "לא נמצא",
           });
@@ -142,12 +160,23 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
           address: store.address,
           websiteUrl: store.website_url,
           providedProducts: new Set<string>(),
+          productPrices: [],
           total: 0,
         };
 
         if (!existing.providedProducts.has(keyForItem)) {
           existing.providedProducts.add(keyForItem);
-          existing.total += store.price * item.quantity;
+          const lineTotal = store.price * item.quantity;
+          existing.productPrices.push({
+            key: keyForItem,
+            productName: item.productName,
+            quantity: item.quantity,
+            packSize: item.packSize,
+            manufacturerAndBarcode: item.manufacturerAndBarcode,
+            unitPrice: store.price,
+            total: lineTotal,
+          });
+          existing.total += lineTotal;
         }
 
         stores.set(key, existing);
@@ -161,6 +190,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
         storeName: store.storeName,
         address: store.address,
         websiteUrl: store.websiteUrl,
+        productPrices: store.productPrices,
         itemCount: store.providedProducts.size,
         missingProducts: results
           .filter((item, itemIndex) => !store.providedProducts.has(productKey(item, itemIndex)))
@@ -267,6 +297,28 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
                       החנות לא מספקת: {store.missingProducts.join(", ")}
                     </div>
                   )}
+
+                  <details className="group mt-3 rounded-lg border border-gray-100 bg-white/80">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-gray-700 marker:hidden">
+                      <span>פירוט מחירים לפי מוצר ({store.productPrices.length})</span>
+                      <ChevronDown size={16} className="shrink-0 text-gray-400 transition group-open:rotate-180" />
+                    </summary>
+                    <div className="border-t border-gray-100 px-3 py-2">
+                      <div className="space-y-2">
+                        {store.productPrices.map((line) => (
+                          <div key={line.key} className="grid gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                            <div className="min-w-0">
+                              <div className="font-medium text-gray-800">{line.productName}</div>
+                              <div className="mt-0.5 text-xs text-gray-500">
+                                {quantityLabel(line)} · מחיר יחידה: <span dir="ltr">₪{line.unitPrice.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            <div className="text-left font-bold text-gray-900" dir="ltr">₪{line.total.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </details>
                 </div>
               );
             })}
