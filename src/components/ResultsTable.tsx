@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { Store, Monitor, ArrowUpDown } from "lucide-react";
+import { Store, Monitor, ArrowUpDown, MoreVertical } from "lucide-react";
 import { StoreRow } from "./StoreRow";
 import type { StoreOffer, CompareResult } from "../api/client";
+import { useUserSettings } from "../context/UserSettingsContext";
 
 interface Props {
   result: CompareResult;
@@ -13,10 +14,14 @@ type SortKey = "price" | "chain";
 type Tab = "physical" | "online";
 
 export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
+  const settings = useUserSettings();
   const [tab, setTab] = useState<Tab>("physical");
   const [sortKey, setSortKey] = useState<SortKey>("price");
 
-  const stores = tab === "physical" ? result.physical_stores : result.online_stores;
+  const allStores = tab === "physical" ? result.physical_stores : result.online_stores;
+  const stores = allStores.filter((store) => settings.isStoreEnabled(tab, store));
+  const physicalCount = result.physical_stores.filter((store) => settings.isStoreEnabled("physical", store)).length;
+  const onlineCount = result.online_stores.filter((store) => settings.isStoreEnabled("online", store)).length;
   const sorted = useMemo(() => {
     const copy = [...stores];
     copy.sort((a, b) => (sortKey === "price" ? a.price - b.price : a.chain.localeCompare(b.chain)));
@@ -39,21 +44,27 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={() => setTab("physical")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === "physical" ? "bg-white shadow text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-            <Store size={16} /> פיזי ({result.physical_stores.length})
+            <Store size={16} /> פיזי ({physicalCount})
           </button>
           <button onClick={() => setTab("online")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === "online" ? "bg-white shadow text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-            <Monitor size={16} /> אונליין ({result.online_stores.length})
+            <Monitor size={16} /> אונליין ({onlineCount})
           </button>
         </div>
       </div>
 
+      {allStores.length > 0 && sorted.length === 0 && (
+        <div className="rounded-xl border bg-white p-5 text-center text-sm text-gray-500 shadow-sm">
+          כל הרשתות בסוג הזה מוסתרות בהגדרות. אפשר להחזיר אותן במסך ההגדרות.
+        </div>
+      )}
+
       <div className="space-y-3 sm:hidden">
         {sorted.map((s, i) => (
-          <MobileStoreCard key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} onAddToList={onAddToList ? () => onAddToList(s) : undefined} />
+          <MobileStoreCard key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} onAddToList={onAddToList ? () => onAddToList(s) : undefined} onHideChain={() => settings.setSupermarketEnabled(tab, s.chain, false)} />
         ))}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-xl border bg-white shadow-sm sm:block">
+      {sorted.length > 0 && <div className="hidden overflow-x-auto rounded-xl border bg-white shadow-sm sm:block">
         <table className="w-full min-w-[760px]">
           <thead>
             <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
@@ -65,16 +76,16 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
                 <span className="inline-flex items-center gap-1">מחיר <ArrowUpDown size={12} /></span>
               </th>
               {quantity > 1 && <th className="py-3 px-3 text-left">סה״כ</th>}
-              {onAddToList && <th className="py-3 px-3 w-16" />}
+              <th className="py-3 px-3 w-28" />
             </tr>
           </thead>
           <tbody>
             {sorted.map((s, i) => (
-              <StoreRow key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} showAddButton={!!onAddToList} onAddToList={() => onAddToList?.(s)} />
+              <StoreRow key={`${s.chain}-${s.store_name}-${i}`} store={s} quantity={quantity} showAddButton={!!onAddToList} onAddToList={() => onAddToList?.(s)} onHideChain={() => settings.setSupermarketEnabled(tab, s.chain, false)} />
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {cheapest > 0 && (
         <div className="mt-3 text-xs text-gray-500 text-center">
@@ -88,7 +99,7 @@ export function ResultsTable({ result, quantity = 1, onAddToList }: Props) {
   );
 }
 
-function MobileStoreCard({ store, quantity, onAddToList }: { store: StoreOffer; quantity: number; onAddToList?: () => void }) {
+function MobileStoreCard({ store, quantity, onAddToList, onHideChain }: { store: StoreOffer; quantity: number; onAddToList?: () => void; onHideChain: () => void }) {
   const totalPrice = store.price * quantity;
   const location = store.website_url ? store.website_url.replace(/https?:\/\//, "").split("/")[0] : store.address || "";
 
@@ -122,7 +133,12 @@ function MobileStoreCard({ store, quantity, onAddToList }: { store: StoreOffer; 
           </span>
         ) : <span className="text-xs text-gray-300">אין מבצע</span>}
         {quantity > 1 && <span className="text-sm font-bold text-green-700" dir="ltr">סה״כ ₪{totalPrice.toFixed(2)}</span>}
-        {onAddToList && <button onClick={onAddToList} className="rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-blue-600 hover:text-white">+ הוסף</button>}
+        <div className="flex flex-wrap gap-2">
+          {onAddToList && <button onClick={onAddToList} className="rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-blue-600 hover:text-white">+ הוסף</button>}
+          <button onClick={onHideChain} className="inline-flex items-center gap-1 rounded bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-red-50 hover:text-red-600">
+            <MoreVertical size={13} /> הסתר רשת
+          </button>
+        </div>
       </div>
     </div>
   );

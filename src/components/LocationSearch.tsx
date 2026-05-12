@@ -5,10 +5,11 @@ import { searchAddress, type AddressResult } from "../api/client";
 
 interface Props {
   onSelect: (item: AddressResult) => void;
+  onClear?: () => void;
   initialLabel?: string;
 }
 
-export function LocationSearch({ onSelect, initialLabel }: Props) {
+export function LocationSearch({ onSelect, onClear, initialLabel }: Props) {
   const fetchFn = useCallback((q: string) => searchAddress(q), []);
   const ac = useAutocomplete(fetchFn, 2);
 
@@ -26,6 +27,7 @@ export function LocationSearch({ onSelect, initialLabel }: Props) {
         if (found) onSelect(found);
       }}
       onClose={() => ac.setOpen(false)}
+      onClear={onClear}
       initialText={initialLabel}
       onOpen={() => ac.results.length > 0 && ac.setOpen(true)}
     />

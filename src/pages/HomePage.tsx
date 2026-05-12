@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Loader, Plus } from "lucide-react";
-import { LocationSearch } from "../components/LocationSearch";
 import { ProductSearch } from "../components/ProductSearch";
 import { ResultsTable } from "../components/ResultsTable";
-import { comparePrices, type AddressResult, type ProductResult, type CompareResult, type StoreOffer } from "../api/client";
+import { comparePrices, type ProductResult, type CompareResult, type StoreOffer } from "../api/client";
 import { useGroceryLists } from "../context/GroceryListsContext";
+import { useUserLocation } from "../context/UserLocationContext";
 import { defaultQuantityForProduct } from "../utils/groceryUnits";
 
 export function HomePage() {
-  const [address, setAddress] = useState<AddressResult | null>(null);
+  const { address } = useUserLocation();
   const [product, setProduct] = useState<ProductResult | null>(null);
   const [result, setResult] = useState<CompareResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,6 +17,10 @@ export function HomePage() {
   const [showListPicker, setShowListPicker] = useState<StoreOffer | null>(null);
   const [creatingList, setCreatingList] = useState(false);
   const [newListName, setNewListName] = useState("");
+
+  useEffect(() => {
+    setResult(null);
+  }, [address?.city_id, address?.street_id]);
 
   const handleCompare = async () => {
     if (!address || !product) return;
@@ -58,11 +62,7 @@ export function HomePage() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border shadow-sm p-5">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1.5 font-medium">איזור קניות</label>
-            <LocationSearch onSelect={(a) => setAddress(a)} />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">מוצר</label>
             <ProductSearch cityId={address?.city_id || "0"} streetId={address?.street_id || "0"} onSelect={(p) => setProduct(p)} />
@@ -79,6 +79,7 @@ export function HomePage() {
         <div className="text-center py-20 text-gray-400">
           <Search size={56} className="mx-auto mb-4 opacity-20" />
           <p className="text-lg">בחרו אזור קניות ומוצר להשוואת מחירים</p>
+          {!address && <p className="mt-1 text-sm">את אזור הקניות בוחרים בסרגל העליון.</p>}
         </div>
       )}
 

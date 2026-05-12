@@ -15,13 +15,14 @@ interface Props {
   onSelect: (item: SearchItem) => void;
   onClose?: () => void;
   onOpen?: () => void;
+  onClear?: () => void;
   initialText?: string;
   renderItem?: (item: SearchItem) => React.ReactNode;
 }
 
 const MAX_DROPDOWN_HEIGHT = 320;
 
-export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect, onClose, onOpen, initialText = "", renderItem }: Props) {
+export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect, onClose, onOpen, onClear, initialText = "", renderItem }: Props) {
   const [text, setText] = useState(initialText);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
@@ -64,6 +65,7 @@ export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect
     setText("");
     setFocusedIdx(-1);
     onQuery("");
+    onClear?.();
     onClose?.();
     inputRef.current?.focus();
   };

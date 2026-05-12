@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { comparePrices, type CompareResult, type StoreOffer } from "../api/client";
-import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store, ChevronDown } from "lucide-react";
+import { Loader, AlertCircle, CheckCircle2, XCircle, Monitor, Store, ChevronDown, MoreVertical } from "lucide-react";
 import { quantityLabel } from "../utils/groceryUnits";
+import { useUserSettings } from "../context/UserSettingsContext";
 
 interface Props {
   listId: string | null;
-  cityId: string;
-  streetId: string;
-  addressLabel: string;
+  cityId?: string;
+  streetId?: string;
+  addressLabel?: string;
 }
 
 interface ItemResult {
@@ -86,6 +87,7 @@ function displayLocation(store: Pick<BasketSummary, "address" | "websiteUrl">) {
 
 export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Props) {
   const { getList } = useGroceryLists();
+  const settings = useUserSettings();
   const list = listId ? getList(listId) : undefined;
   const [results, setResults] = useState<ItemResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +97,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
     let cancelled = false;
 
     async function runCompare() {
-      if (!list || list.items.length === 0) {
+      if (!list || list.items.length === 0 || !cityId || !streetId) {
         setResults([]);
         setLoading(false);
         return;
@@ -148,7 +150,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
     const stores = new Map<string, BasketStore>();
 
     results.forEach((item, itemIndex) => {
-      const storesForItem = item.result ? item.result[storeType === "online" ? "online_stores" : "physical_stores"] : [];
+      const storesForItem = item.result ? item.result[storeType === "online" ? "online_stores" : "physical_stores"].filter((store) => settings.isStoreEnabled(storeType, store)) : [];
       const keyForItem = productKey(item, itemIndex);
 
       storesForItem.forEach((store) => {
@@ -203,7 +205,7 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
         }
         return a.total - b.total;
       });
-  }, [results, storeType]);
+  }, [results, storeType, settings]);
 
   const unavailableProducts = results.filter((item) => !item.result).map((item) => item.productName);
 
@@ -217,12 +219,20 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
 
   if (!list) return <div className="text-center py-12 text-gray-500">רשימה לא נמצאה</div>;
 
+  if (!cityId || !streetId) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-center text-sm text-gray-400">
+        בחרו אזור קניות בסרגל העליון כדי להשוות את הסל.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 rounded-2xl border bg-white p-4 shadow-sm" aria-live="polite">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">השוואת סל: {list.name}</h2>
-          <p className="text-sm text-gray-500">ההשוואה רצה אוטומטית עבור {addressLabel} ומתעדכנת כשמשנים איזור.</p>
+          <p className="text-sm text-gray-500">ההשוואה רצה אוטומטית עבור {addressLabel} ומתעדכנת כשמשנים איזור בסרגל העליון.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
@@ -319,6 +329,14 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
                       </div>
                     </div>
                   </details>
+
+                  <button
+                    type="button"
+                    onClick={() => settings.setSupermarketEnabled(storeType, store.chain, false)}
+                    className="mt-3 inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600"
+                  >
+                    <MoreVertical size={14} /> הסתר רשת זו מהשוואות
+                  </button>
                 </div>
               );
             })}

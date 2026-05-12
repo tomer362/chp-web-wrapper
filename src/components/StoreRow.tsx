@@ -1,4 +1,4 @@
-import { Store, Tag, ExternalLink } from "lucide-react";
+import { Store, Tag, ExternalLink, MoreVertical } from "lucide-react";
 import type { StoreOffer } from "../api/client";
 
 interface Props {
@@ -6,9 +6,10 @@ interface Props {
   quantity?: number;
   showAddButton?: boolean;
   onAddToList?: () => void;
+  onHideChain: () => void;
 }
 
-export function StoreRow({ store, quantity = 1, showAddButton, onAddToList }: Props) {
+export function StoreRow({ store, quantity = 1, showAddButton, onAddToList, onHideChain }: Props) {
   const totalPrice = store.price * quantity;
 
   return (
@@ -47,11 +48,14 @@ export function StoreRow({ store, quantity = 1, showAddButton, onAddToList }: Pr
           <div className="text-xs text-gray-400">× {quantity}</div>
         </td>
       )}
-      {showAddButton && (
-        <td className="py-3 px-3">
-          <button onClick={onAddToList} className="text-xs bg-gray-100 hover:bg-blue-600 hover:text-white text-gray-600 px-2.5 py-1.5 rounded transition">+ הוסף</button>
-        </td>
-      )}
+      <td className="py-3 px-3">
+        <div className="flex flex-wrap gap-2">
+          {showAddButton && <button onClick={onAddToList} className="text-xs bg-gray-100 hover:bg-blue-600 hover:text-white text-gray-600 px-2.5 py-1.5 rounded transition">+ הוסף</button>}
+          <button onClick={onHideChain} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2.5 py-1.5 text-xs text-gray-600 transition hover:bg-red-50 hover:text-red-600">
+            <MoreVertical size={13} /> הסתר
+          </button>
+        </div>
+      </td>
     </tr>
   );
 }

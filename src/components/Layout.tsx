@@ -1,8 +1,11 @@
-import { Link, useLocation } from "react-router-dom";
-import { List, Home } from "lucide-react";
+import { Link, useLocation as useRouterLocation } from "react-router-dom";
+import { List, Home, Settings } from "lucide-react";
+import { LocationSearch } from "./LocationSearch";
+import { useUserLocation } from "../context/UserLocationContext";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const loc = useLocation();
+  const loc = useRouterLocation();
+  const { address, setAddress } = useUserLocation();
   const link = (to: string, label: string, Icon: typeof Home) => (
     <Link
       to={to}
@@ -18,14 +21,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
       <header className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+        <div className="mx-auto grid max-w-6xl gap-2 px-4 py-2 lg:grid-cols-[auto_minmax(16rem,28rem)_auto] lg:items-center">
           <Link to="/" className="flex shrink-0 items-center justify-center gap-2 text-lg font-bold text-blue-600 sm:justify-start sm:text-xl">
             <span aria-hidden="true">🏪</span>
             <span>super.compare</span>
           </Link>
-          <nav className="grid grid-cols-2 gap-2 sm:flex" aria-label="ניווט ראשי">
+          <div className="min-w-0">
+            <LocationSearch initialLabel={address?.label || ""} onSelect={setAddress} onClear={() => setAddress(null)} />
+          </div>
+          <nav className="grid grid-cols-3 gap-2 sm:flex" aria-label="ניווט ראשי">
             {link("/", "השוואת מחירים", Home)}
             {link("/lists", "רשימות קניות", List)}
+            {link("/settings", "הגדרות", Settings)}
           </nav>
         </div>
       </header>
