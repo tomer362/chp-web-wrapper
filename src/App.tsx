@@ -6,6 +6,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { GroceryListsProvider } from "./context/GroceryListsContext";
 import { UserSettingsProvider } from "./context/UserSettingsContext";
 import { UserLocationProvider } from "./context/UserLocationContext";
+import { BackgroundSupermarketPreloader } from "./components/BackgroundSupermarketPreloader";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <UserSettingsProvider>
         <UserLocationProvider>
           <GroceryListsProvider>
+            <BackgroundSupermarketPreloader />
             <Layout>
               <Routes>
                 <Route path="/" element={<HomePage />} />

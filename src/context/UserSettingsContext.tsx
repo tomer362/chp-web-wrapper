@@ -11,13 +11,14 @@ export interface SupermarketPreference {
 interface StoredSettings {
   supermarkets: Record<SupermarketType, SupermarketPreference[]>;
   lastLoadedAt?: number;
+  lastLoadedLocationKey?: string;
 }
 
 interface UserSettingsContextType extends StoredSettings {
   upsertSupermarkets: (type: SupermarketType, chains: string[]) => void;
   setSupermarketEnabled: (type: SupermarketType, chain: string, enabled: boolean) => void;
   setAllSupermarketsEnabled: (type: SupermarketType, enabled: boolean) => void;
-  markLoaded: () => void;
+  markLoaded: (locationKey?: string) => void;
   isStoreEnabled: (type: SupermarketType, store: StoreOffer) => boolean;
 }
 
@@ -48,6 +49,7 @@ function load(): StoredSettings {
         physical: parsed.supermarkets?.physical ?? [],
       },
       lastLoadedAt: parsed.lastLoadedAt,
+      lastLoadedLocationKey: parsed.lastLoadedLocationKey,
     };
   } catch {
     return EMPTY_SETTINGS;
@@ -106,8 +108,8 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
       }));
     };
 
-    const markLoaded = () => {
-      setSettings((prev) => ({ ...prev, lastLoadedAt: Date.now() }));
+    const markLoaded = (locationKey?: string) => {
+      setSettings((prev) => ({ ...prev, lastLoadedAt: Date.now(), lastLoadedLocationKey: locationKey }));
     };
 
     const isStoreEnabled = (type: SupermarketType, store: StoreOffer) => {

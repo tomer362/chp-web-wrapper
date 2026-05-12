@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { Loader, Monitor, RefreshCw, Store, SlidersHorizontal } from "lucide-react";
-import { comparePrices, searchProducts } from "../api/client";
 import { useUserSettings, type SupermarketType } from "../context/UserSettingsContext";
 import { useUserLocation } from "../context/UserLocationContext";
-
-const PRELOAD_PRODUCTS = ["חלב", "לחם", "ביצים", "קוטג", "עגבניות"];
+import { locationKey, preloadSupermarketsForAddress } from "../utils/supermarketPreload";
 
 export function SettingsPage() {
   const settings = useUserSettings();
@@ -21,30 +19,12 @@ export function SettingsPage() {
     setLoading(true);
     setMessage("");
 
-    const found: Record<SupermarketType, Set<string>> = {
-      online: new Set(),
-      physical: new Set(),
-    };
-
     try {
-      for (const term of PRELOAD_PRODUCTS) {
-        const products = await searchProducts(term, address.city_id, address.street_id);
-        const product = products.find((item) => item.barcode);
-        if (!product) continue;
-
-        try {
-          const result = await comparePrices(product.barcode, product.value || product.label, address.city_id, address.street_id, "50");
-          result.online_stores.forEach((store) => store.chain && found.online.add(store.chain));
-          result.physical_stores.forEach((store) => store.chain && found.physical.add(store.chain));
-        } catch {
-          // CHP may miss a sampled product; keep loading chains from the rest.
-        }
-      }
-
-      settings.upsertSupermarkets("online", [...found.online]);
-      settings.upsertSupermarkets("physical", [...found.physical]);
-      settings.markLoaded();
-      setMessage(`נטענו ${found.online.size} רשתות אונליין ו-${found.physical.size} רשתות פיזיות עבור ${address.label}.`);
+      const found = await preloadSupermarketsForAddress(address);
+      settings.upsertSupermarkets("online", found.online);
+      settings.upsertSupermarkets("physical", found.physical);
+      settings.markLoaded(locationKey(address));
+      setMessage(`נטענו ${found.online.length} רשתות אונליין ו-${found.physical.length} רשתות פיזיות עבור ${address.label}. הבחירות הקיימות נשמרו.`);
     } catch {
       setMessage("לא הצלחנו לטעון רשתות כרגע. נסו שוב מאוחר יותר.");
     } finally {
