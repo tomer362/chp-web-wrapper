@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 export interface GroceryItem {
   id: string;
   productName: string;
+  productSearchValue?: string;
   barcode: string;
   quantity: number;
   checked: boolean;

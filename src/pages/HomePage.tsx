@@ -30,6 +30,7 @@ export function HomePage() {
     if (!showListPicker || !product) return;
     addItem(listId, {
       productName: result?.product_name || product.value,
+      productSearchValue: product.value || product.label,
       barcode: product.barcode,
       quantity: 1,
       addedPrice: showListPicker.price,

@@ -3,7 +3,7 @@ from typing import Optional
 from bs4 import BeautifulSoup, Tag, NavigableString
 import soupsieve as sv
 from .client import ChpClient
-from .models import CompareResult, StoreOffer
+from .models import CompareResult, ProductSuggestion, StoreOffer
 from .product import search_product
 
 _ZERO_WIDTH_CHARS = re.compile(r"[\u200b\u200c\u200d\u200e\u200f]")
@@ -309,6 +309,23 @@ def _has_offers(result: CompareResult) -> bool:
     return bool(result.physical_stores or result.online_stores)
 
 
+def _suggestion_search_terms(suggestion: ProductSuggestion) -> list[str]:
+    terms = [
+        suggestion.value,
+        suggestion.parts.name_and_contents,
+        suggestion.label,
+    ]
+    seen: set[str] = set()
+    unique_terms: list[str] = []
+    for term in terms:
+        normalized = (term or "").strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_terms.append(normalized)
+    return unique_terms
+
+
 async def compare(
     client: ChpClient,
     barcode: str,
@@ -352,17 +369,20 @@ async def compare(
     for suggestion in suggestions[:3]:
         if suggestion.barcode in tried_barcodes:
             continue
-        result = await _compare_once(
-            client,
-            barcode=suggestion.barcode,
-            product_name=suggestion.parts.name_and_contents or suggestion.value or product_name,
-            city_id=city_id,
-            street_id=street_id,
-            from_=from_,
-            num_results=num_results,
-        )
-        if _has_offers(result):
-            return result
+
+        for term in _suggestion_search_terms(suggestion) or [product_name]:
+            result = await _compare_once(
+                client,
+                barcode=suggestion.barcode,
+                product_name=term,
+                city_id=city_id,
+                street_id=street_id,
+                from_=from_,
+                num_results=num_results,
+            )
+            if _has_offers(result):
+                return result
+
         tried_barcodes.add(suggestion.barcode)
 
     return result

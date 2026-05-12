@@ -12,6 +12,7 @@ interface Props {
 
 interface ItemResult {
   productName: string;
+  productSearchValue?: string;
   quantity: number;
   result: CompareResult | null;
   error?: string;
@@ -67,10 +68,22 @@ export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Pro
         if (cancelled) return;
 
         try {
-          const r = await comparePrices(item.barcode || "", item.productName, cityId, streetId);
-          out.push({ productName: item.productName, quantity: item.quantity, result: r });
+          const productSearchValue = item.productSearchValue || item.productName;
+          const r = await comparePrices(item.barcode || "", productSearchValue, cityId, streetId);
+          out.push({
+            productName: item.productName,
+            productSearchValue: item.productSearchValue,
+            quantity: item.quantity,
+            result: r,
+          });
         } catch {
-          out.push({ productName: item.productName, quantity: item.quantity, result: null, error: "לא נמצא" });
+          out.push({
+            productName: item.productName,
+            productSearchValue: item.productSearchValue,
+            quantity: item.quantity,
+            result: null,
+            error: "לא נמצא",
+          });
         }
       }
 
