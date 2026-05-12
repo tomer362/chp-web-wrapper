@@ -29,6 +29,7 @@ export function GroceryListPanel({ onCompareList, cityId, streetId, activeCompar
     (listId: string, product: ProductResult) => {
       addItem(listId, {
         productName: product.parts?.name_and_contents || product.label,
+        productSearchValue: product.value || product.label,
         barcode: product.barcode,
         quantity: 1,
         packSize: product.parts?.pack_size,
