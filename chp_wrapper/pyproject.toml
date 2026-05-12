@@ -1,0 +1,27 @@
+[project]
+name = "chp-wrapper"
+version = "0.1.0"
+description = "Python wrapper for chp.co.il price comparison API"
+readme = "README.md"
+authors = [
+    { name = "rachelbernadsky", email = "rachber2000@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "fastapi>=0.110",
+    "pydantic>=2.0",
+    "uvicorn>=0.20",
+]
+
+[project.scripts]
+chp-api = "chp_wrapper.api.main:run"
+
+[build-system]
+requires = ["uv_build>=0.9.11,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["playwright>=1.52"]
