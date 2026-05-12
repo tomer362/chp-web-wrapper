@@ -1,126 +1,123 @@
-# Architecture
+# Website Architecture
+
+This document explains how the React website is structured, how state flows through the app, how it talks to the backend, and how the project is deployed. The backend/API surface is documented separately in [API_FEATURES.md](./API_FEATURES.md).
 
 ## Overview
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Browser                          │
-│  ┌──────────────────────────────────────────┐       │
-│  │          React SPA (Vite)                 │       │
-│  │  ┌─────────┐ ┌──────────┐ ┌──────────┐  │       │
-│  │  │  Search  │ │ Results  │ │  Lists   │  │       │
-│  │  │  Autocom-│ │ Table    │ │  Page    │  │       │
-│  │  │  plete   │ │ (sorted) │ │          │  │       │
-│  │  └────┬────┘ └────┬─────┘ └────┬─────┘  │       │
-│  └───────┼───────────┼────────────┼────────┘       │
-│          │  fetch(/api/*)         │                 │
-└──────────┼───────────┼────────────┼─────────────────┘
-           │           │            │
-    ┌──────┴───────────┴────────────┴─────────────────┐
-    │               Vercel                             │
-    │  ┌──────────────────┐  ┌──────────────────────┐ │
-    │  │ Python Serverless │  │ Static Files         │ │
-    │  │ api/index.py      │  │ dist/ (Vite build)   │ │
-    │  │                   │  │                      │ │
-    │  │ chp_wrapper lib   │  │ / → index.html       │ │
-    │  │ (sys.path import) │  │ /* → SPA fallback    │ │
-    │  └───────┬───────────┘  └──────────────────────┘ │
-    └──────────┼────────────────────────────────────────┘
-               │
-    ┌──────────┴────────────────────────────────────────┐
-    │              chp.co.il (external)                  │
-    │  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │
-    │  │ Address  │  │ Product  │  │ Compare        │  │
-    │  │ Autocomp.│  │ Search   │  │ Results (HTML) │  │
-    │  │ (JSON)   │  │ (JSON)   │  │ (obfuscated)   │  │
-    │  └──────────┘  └──────────┘  └───────┬────────┘  │
-    └──────────────────────────────────────┼────────────┘
-                                           │
-                              ┌────────────▼────────────┐
-                              │  Deobfuscation Engine   │
-                              │  (compare.py)           │
-                              │                         │
-                              │  1. Parse inline CSS    │
-                              │  2. Build visibility    │
-                              │     map from selectors  │
-                              │  3. Walk DOM, apply     │
-                              │     CSS specificity     │
-                              │  4. Extract visible     │
-                              │     text only           │
-                              └─────────────────────────┘
+`chp.site` is a Hebrew RTL grocery price comparison single-page app. It has two primary user flows:
+
+1. Compare one product across physical and online stores.
+2. Build grocery lists and compare whole baskets across stores.
+
+The frontend is a React 19 app built with Vite and Tailwind CSS 4. The backend is a FastAPI serverless function hosted under `/api/*` on Vercel. The backend wraps `chp.co.il` autocomplete and comparison endpoints.
+
+```text
+Browser
+  React SPA
+    HomePage: location + product search + single-product results
+    ListsPage: grocery-list CRUD + basket comparison
+    GroceryListsContext: localStorage-backed list state
+      |
+      | fetch('/api/*')
+      v
+Vercel
+  Static frontend: dist/
+  Python API: api/index.py
+      |
+      v
+chp_wrapper
+  address.py, product.py, compare.py, models.py
+      |
+      v
+chp.co.il
+  Address autocomplete, product autocomplete, obfuscated comparison HTML
 ```
 
-## Scraper Deobfuscation (the key challenge)
+## Runtime Architecture
 
-chp.co.il returns product comparison as **obfuscated HTML**. Each visible character is wrapped in `<span>`/`<div>` with random `data-xxx` attributes. Decoy/garbage elements are interleaved. Inline `<style>` blocks toggle visibility via CSS attribute selectors.
+### Frontend Runtime
 
-```
-HTML:  <span data-vfoq="LLbbQkiS">ר</span>        ← visible (real)
-       <span data-vdoyrbmi="asmlPl">0N</span>     ← hidden (decoy)
-       <div id="XyZ" data-abc="XyZ"></div>        ← hidden (decoy)
+The browser downloads the Vite-built static assets from `dist/`. React Router owns navigation between `/` and `/lists`; Vercel rewrites non-API routes to `index.html`, so browser refreshes work for client routes.
 
-CSS:   [data-tsdOyVgW="GhqyMW"] { display:inline; }
-       span[data-vdOYrbmI="asmlPl"] { display:none; }
-       #XyZ[data-abc="XyZ"] { display:none; }
-```
+The app uses relative API requests like `/api/products` and `/api/compare`. This keeps local development and production simple: the same frontend code works behind the Vite dev proxy and behind Vercel rewrites.
 
-The deobfuscator (`chp_wrapper/compare.py`):
-1. Extracts all inline `<style>` blocks
-2. Parses each CSS selector into a structured rule: `{tag, attr_name, attr_value, has_id, display_none, specificity}`
-3. For each element, finds all matching CSS rules
-4. Picks the most specific rule (id+attr > tag+attr > attr-only)
-5. If the winning rule says `display:none` → element is hidden; otherwise visible
-6. Extracts text only from visible elements
-7. Also reads `data-discount-desc` from `<button>` elements for full deal descriptions
+### Backend Runtime
 
-## Backend API (api/index.py)
+`api/index.py` is deployed as a Vercel Python serverless function. It exposes FastAPI routes under `/api/*`, creates one `ChpClient` during FastAPI lifespan startup, and forwards requests to the scraper package.
 
-| Endpoint | Method | Params | Response |
-|----------|--------|--------|----------|
-| `/api/health` | GET | — | `{"status":"ok"}` |
-| `/api/addresses` | GET | `q`, `from` | `[{label, value, city_id, street_id}]` |
-| `/api/products` | GET | `q`, `city_id`, `street_id`, `from` | `[{label, value, barcode, parts}]` |
-| `/api/compare` | GET | `barcode`, `product_name`, `city_id`, `street_id`, `from`, `num_results` | `{product_name, physical_stores[], online_stores[]}` |
+The local Python package lives in `chp_wrapper/src/chp_wrapper`. Vercel installs it through `requirements.txt` via `./chp_wrapper`, and `api/index.py` also inserts the source path into `sys.path` to make imports reliable in the serverless layout.
 
-Built with **FastAPI**, served as a **Vercel Python serverless function** from `api/index.py`.
-Imports `chp_wrapper` (sibling package) via `sys.path` + `./chp_wrapper` in `requirements.txt`.
+### External Dependency
 
-## Frontend (React 19 + Vite + Tailwind CSS 4)
+All product, address, and price data ultimately comes from `chp.co.il`. The site is treated as an external dependency and can change response HTML, product availability, store listings, or prices at any time. The scraper tests in `tests/test_scraper_regressions.py` guard the most important parsing assumptions.
 
-### Component Tree
+## Application Routes
 
-```
-App (BrowserRouter)
-├── Layout (sticky header + nav: "השוואת מחירים" | "רשימות קניות")
-├── HomePage
-│   ├── LocationSearch (autocomplete → city_id/street_id)
-│   ├── ProductSearch (autocomplete → barcode + product parts)
-│   ├── [בדוק מחיר] button
-│   └── ResultsTable
-│       ├── Tabs: פיזי / אונליין
-│       ├── Sort: by price / chain
-│       └── StoreRow[] (chain, store, address/url, deal, price, [add to list])
-├── ListsPage
-│   ├── LocationSearch (for bulk compare)
-│   └── GroceryListPanel
-│       ├── Create/delete/rename lists
-│       └── GroceryListItem[] (productName, qty, checked, [compare])
-│           └── ProductSearch (autocomplete when adding items)
-└── ListCompareTable
-    └── ResultsTable[] (one per product, with bulk compare)
+| Route | Page | Purpose |
+| --- | --- | --- |
+| `/` | `HomePage` | Search one product for one shopping area and show store offers. |
+| `/lists` | `ListsPage` | Create grocery lists, add products, and compare baskets by store. |
+
+## Component Structure
+
+```text
+App
+  BrowserRouter
+    GroceryListsProvider
+      Layout
+        Routes
+          / -> HomePage
+            LocationSearch
+            ProductSearch
+            ResultsTable
+              StoreRow
+            Add-to-list modal
+          /lists -> ListsPage
+            LocationSearch
+            GroceryListPanel
+              ProductSearch
+            ListCompareTable
 ```
 
-### State Management
+## Key Frontend Modules
 
-- **Search state**: Local `useState` in pages (address, product, results)
-- **Autocomplete**: `useAutocomplete` hook — debounced (250ms), fetches on query change
-- **Grocery lists**: `GroceryListsContext` — persisted to `localStorage["chp-grocery-lists"]`
+| File | Responsibility |
+| --- | --- |
+| `src/App.tsx` | Sets up React Router and wraps the app in `GroceryListsProvider`. |
+| `src/components/Layout.tsx` | RTL page shell, sticky header, and navigation. |
+| `src/pages/HomePage.tsx` | Single-product comparison flow and add-to-list modal. |
+| `src/pages/ListsPage.tsx` | Grocery-list page and comparison area selection. |
+| `src/components/SearchBar.tsx` | Reusable autocomplete UI with keyboard/mouse interactions. |
+| `src/components/LocationSearch.tsx` | Address autocomplete wrapper. |
+| `src/components/ProductSearch.tsx` | Product autocomplete wrapper with image, pack size, manufacturer, and price range display. |
+| `src/components/ResultsTable.tsx` | Single-product results with physical/online tabs and sorting. |
+| `src/components/StoreRow.tsx` | One store offer row. |
+| `src/components/GroceryListPanel.tsx` | Create/delete lists and add/remove/update list items. |
+| `src/components/ListCompareTable.tsx` | Basket comparison, online/physical filter, totals, and missing-product summaries. |
+| `src/context/GroceryListsContext.tsx` | Local grocery-list state and localStorage persistence. |
+| `src/hooks/useAutocomplete.ts` | Debounced autocomplete requests with stale-response protection. |
+| `src/api/client.ts` | Typed fetch wrappers for `/api/*`. |
 
-### Grocery List Data Model (localStorage)
+## State Management
 
-```typescript
+State is intentionally simple and local.
+
+| State | Owner | Persistence |
+| --- | --- | --- |
+| Current address/product search | `HomePage` | In memory only. |
+| Single-product comparison result | `HomePage` | In memory only. |
+| Grocery comparison area | `ListsPage` | In memory only, defaults to Tel Aviv. |
+| Active grocery list being compared | `ListsPage` | In memory only. |
+| Grocery lists and items | `GroceryListsContext` | `localStorage['chp-grocery-lists']`. |
+| Autocomplete query/results/loading/open | `useAutocomplete` | In memory only. |
+
+## Grocery List Model
+
+Grocery lists are client-side data. There is no user account or remote database.
+
+```ts
 interface GroceryList {
-  id: string;          // crypto.randomUUID()
+  id: string;
   name: string;
   createdAt: number;
   items: GroceryItem[];
@@ -129,51 +126,99 @@ interface GroceryList {
 interface GroceryItem {
   id: string;
   productName: string;
+  productSearchValue?: string;
   barcode: string;
   quantity: number;
   checked: boolean;
-  addedPrice?: number;   // price when added (for reference)
+  packSize?: string;
+  manufacturerAndBarcode?: string;
+  addedPrice?: number;
   addedStore?: string;
 }
 ```
 
-## Vercel Deployment
+`productSearchValue` is important for long-lived list items. It stores the autocomplete search value used by CHP, which can be more reliable for later basket comparisons than the display name alone.
 
-The repo is set up for zero-config deployment on Vercel:
+## Data Flow
 
-1. **Python API** (`api/index.py`): Auto-detected as Python serverless function. Installs deps from `requirements.txt` (includes `./chp_wrapper` local package). Has `maxDuration: 10` (max on hobby plan = 10s timeout).
+### Single Product Comparison
 
-2. **React Frontend** (`package.json` at root): Auto-detected as Vite framework. Builds to `dist/` via `npm run build`.
+1. User selects an address in `LocationSearch`.
+2. User selects a product in `ProductSearch`.
+3. `HomePage` calls `comparePrices(product.barcode, product.value, city_id, street_id)`.
+4. `GET /api/compare` returns a `CompareResult` with `physical_stores` and `online_stores`.
+5. `ResultsTable` displays either physical or online stores, sorted by price by default.
+6. User can add a selected offer to a grocery list for later reference.
 
-3. **Routing** (`vercel.json`):
-   - `/api/*` → Python serverless function
-   - `/*` → SPA fallback to `index.html`
+### Grocery Basket Comparison
 
-### `maxDuration: 10` explained
+1. User creates a list and adds products through `GroceryListPanel`.
+2. Each item stores display name, search value, barcode, quantity, pack size, and manufacturer metadata.
+3. User chooses a comparison area in `ListsPage`.
+4. `ListCompareTable` automatically compares each list item through `/api/compare`.
+5. The table aggregates stores by normalized identity.
+6. User can switch between online and physical store modes; the default is online.
+7. For each store, the UI shows total basket price, available item count, and missing products.
 
-Vercel's **hobby plan** limits serverless function execution to **10 seconds**. Our Python function calls chp.co.il's external API which typically responds in 1-3 seconds. We set `maxDuration: 10` to allow the maximum possible time on the hobby plan. If chp.co.il is slow, the function may timeout with a 504 error. On the **pro plan**, this can be increased to 900 seconds (15 minutes).
+## Store Matching In Basket Comparison
 
-## Files
+`ListCompareTable` computes a store key before aggregating basket totals:
 
+1. Online stores are keyed by normalized website hostname, for example `rami-levy.co.il`.
+2. Physical stores are keyed by normalized chain, store name, and address.
+3. Normalization removes zero-width characters, normalizes Unicode, collapses whitespace, and strips punctuation.
+
+This avoids false missing-products caused by minor text or URL differences between product responses.
+
+## Styling And UX
+
+The app is RTL by default via `dir="rtl"` in `Layout`. Tailwind utility classes drive styling directly in components. The UI emphasizes mobile-friendly controls with larger touch targets in search/list components and responsive grids in page layouts.
+
+Design conventions:
+
+- Cards use rounded borders and light shadows.
+- Primary actions are blue, comparison/basket actions are green.
+- Empty states and warnings are shown inline instead of modal-heavy flows.
+- Product and store text allows wrapping because Hebrew product names can be long.
+
+## Deployment
+
+Vercel deployment is controlled by `vercel.json`:
+
+```json
+{
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.py" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/index.py": { "maxDuration": 10 }
+  }
+}
 ```
-/
-├── api/index.py              FastAPI serverless (Vercel Python)
-├── chp_wrapper/              Python scraper library
-│   ├── src/chp_wrapper/
-│   │   ├── client.py         HTTP session + u param generation
-│   │   ├── address.py        Location autocomplete → city_id/street_id
-│   │   ├── product.py        Product search → barcode
-│   │   ├── compare.py        Comparison fetch + CSS deobfuscation
-│   │   └── models.py         Pydantic models
-│   └── ...
-├── src/                      React frontend
-│   ├── api/client.ts         Fetch wrappers for /api/*
-│   ├── hooks/useAutocomplete.ts  Debounced autocomplete hook
-│   ├── context/GroceryListsContext.tsx  localStorage CRUD
-│   ├── components/           SearchBar, ResultsTable, StoreRow, ...
-│   └── pages/                HomePage, ListsPage
-├── vercel.json               Vercel deployment config
-├── requirements.txt          Python dependencies
-├── package.json              Node.js dependencies (Vite + React)
-└── vite.config.ts
+
+Deployment responsibilities:
+
+- `npm install` installs frontend dependencies.
+- `npm run build` runs TypeScript and Vite production build.
+- `dist/` is served as static output.
+- `/api/*` is handled by the Python FastAPI serverless function.
+- `maxDuration` is set to 10 seconds, matching Vercel Hobby limits.
+
+## Development And Validation
+
+Useful commands:
+
+```sh
+npm run build
+python3 -m unittest discover
 ```
+
+The scraper tests include live CHP smoke coverage for known products and stores. They warn when product/store availability appears to have changed, and fail on suspicious parser output such as corrupted hidden text, malformed URLs, empty store names, or impossible prices.
+
+## Related Documentation
+
+- [API_FEATURES.md](./API_FEATURES.md): API routes, response models, scraper behavior, error handling, and testing strategy.
