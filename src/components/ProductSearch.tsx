@@ -26,6 +26,7 @@ export function ProductSearch({ cityId, onSelect }: Props) {
         if (found) onSelect(found);
       }}
       onClose={() => ac.setOpen(false)}
+      onOpen={() => ac.results.length > 0 && ac.setOpen(true)}
       renderItem={(item) => {
         const prod = ac.results.find((r) => r.barcode === item.value);
         if (!prod) return <span>{item.label}</span>;

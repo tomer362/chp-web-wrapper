@@ -9,26 +9,38 @@ export function useAutocomplete<T>(
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const requestId = useRef(0);
 
   useEffect(() => {
-    if (query.length < minLength) {
+    const normalizedQuery = query.trim();
+    requestId.current += 1;
+    const currentRequest = requestId.current;
+
+    if (normalizedQuery.length < minLength) {
+      clearTimeout(timer.current);
       setResults([]);
       setOpen(false);
+      setLoading(false);
       return;
     }
+
     setLoading(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try {
-        const data = await fetchFn(query);
+        const data = await fetchFn(normalizedQuery);
+        if (currentRequest !== requestId.current) return;
         setResults(data);
         setOpen(data.length > 0);
       } catch {
+        if (currentRequest !== requestId.current) return;
         setResults([]);
+        setOpen(false);
       } finally {
-        setLoading(false);
+        if (currentRequest === requestId.current) setLoading(false);
       }
     }, 250);
+
     return () => clearTimeout(timer.current);
   }, [query, fetchFn, minLength]);
 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Trash2, CheckSquare, Square, ShoppingCart, ListChecks } from "lucide-react";
+import { Plus, Trash2, CheckSquare, Square, ShoppingCart, ListChecks, X } from "lucide-react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { ProductSearch } from "./ProductSearch";
 import type { ProductResult } from "../api/client";
@@ -20,6 +20,7 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
     const list = addList(newName.trim());
     setNewName("");
     setExpanded(list.id);
+    setAddingToListId(list.id);
   };
 
   const handleProductSelect = useCallback(
@@ -30,58 +31,100 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
         quantity: 1,
       });
       setAddingToListId(null);
+      setExpanded(listId);
     },
     [addItem]
   );
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <input type="text" dir="rtl" placeholder="שם רשימה חדשה..." className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
-        <button onClick={handleCreate} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-1"><Plus size={16} /> צור רשימה</button>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+        <input
+          type="text"
+          dir="rtl"
+          placeholder="שם רשימה חדשה..."
+          className="min-h-12 w-full rounded-xl border border-gray-300 px-3 py-3 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-0 sm:py-2 sm:text-sm"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+        />
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={!newName.trim()}
+          className="inline-flex min-h-12 items-center justify-center gap-1 rounded-xl bg-blue-600 px-4 py-3 text-base font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:py-2 sm:text-sm"
+        >
+          <Plus size={18} /> צור רשימה
+        </button>
       </div>
 
       {lists.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-12 text-center text-gray-400">
           <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
-          <p>עדיין אין רשימות קניות</p>
+          <p className="font-medium text-gray-500">עדיין אין רשימות קניות</p>
           <p className="text-sm">צרו רשימה חדשה והתחילו להוסיף מוצרים</p>
         </div>
       )}
 
       <div className="space-y-3">
         {lists.map((list) => (
-          <div key={list.id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3">
-              <button className="flex items-center gap-2 font-medium text-gray-900 hover:text-blue-600 transition" onClick={() => setExpanded(expanded === list.id ? null : list.id)}>
-                <ListChecks size={18} className="text-gray-400" /> {list.name} <span className="text-xs text-gray-400">({list.items.length})</span>
+          <div key={list.id} className="overflow-visible rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 text-right font-medium text-gray-900 transition hover:text-blue-600"
+                onClick={() => setExpanded(expanded === list.id ? null : list.id)}
+                aria-expanded={expanded === list.id}
+              >
+                <ListChecks size={18} className="shrink-0 text-gray-400" />
+                <span className="truncate">{list.name}</span>
+                <span className="shrink-0 text-xs text-gray-400">({list.items.length})</span>
               </button>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 {list.items.length > 0 && (
-                  <button onClick={() => onCompareList(list.id)} className="text-xs bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg font-medium transition">השווה מחירים</button>
+                  <button type="button" onClick={() => onCompareList(list.id)} className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-200">השווה מחירים</button>
                 )}
-                <button onClick={() => removeList(list.id)} className="text-gray-400 hover:text-red-500 transition"><Trash2 size={16} /></button>
+                <button type="button" onClick={() => removeList(list.id)} aria-label={`מחק את ${list.name}`} className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16} /></button>
               </div>
             </div>
 
             {expanded === list.id && (
-              <div className="border-t px-4 py-3 space-y-2">
+              <div className="space-y-3 border-t px-4 py-3">
+                {list.items.length === 0 && addingToListId !== list.id && (
+                  <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">הרשימה ריקה. הוסיפו מוצר כדי להתחיל.</p>
+                )}
+
                 {list.items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 group">
-                    <button onClick={() => updateItem(list.id, item.id, { checked: !item.checked })}>
-                      {item.checked ? <CheckSquare size={18} className="text-green-500" /> : <Square size={18} className="text-gray-400" />}
+                  <div key={item.id} className="group flex items-center gap-2 rounded-lg py-1">
+                    <button type="button" className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100" onClick={() => updateItem(list.id, item.id, { checked: !item.checked })} aria-label={item.checked ? "סמן כמוצר שלא נקנה" : "סמן כמוצר שנקנה"}>
+                      {item.checked ? <CheckSquare size={20} className="text-green-500" /> : <Square size={20} className="text-gray-400" />}
                     </button>
-                    <span className={`flex-1 text-sm ${item.checked ? "line-through text-gray-400" : "text-gray-700"}`}>{item.productName}</span>
-                    <input type="number" min={1} className="w-14 text-center border border-gray-200 rounded text-sm py-0.5" value={item.quantity} onChange={(e) => updateItem(list.id, item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} />
-                    <span className="text-xs text-gray-400">יח'</span>
-                    <button onClick={() => removeItem(list.id, item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Trash2 size={14} /></button>
+                    <span className={`min-w-0 flex-1 truncate text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-700"}`}>{item.productName}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      dir="ltr"
+                      aria-label={`כמות עבור ${item.productName}`}
+                      className="w-16 rounded-lg border border-gray-200 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(list.id, item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    />
+                    <span className="shrink-0 text-xs text-gray-400">יח'</span>
+                    <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="rounded p-1 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
                   </div>
                 ))}
-                <div className="pt-2">
+
+                <div className="relative z-10 pt-2">
                   {addingToListId === list.id ? (
-                    <ProductSearch cityId={cityId} onSelect={(product) => handleProductSelect(list.id, product)} />
+                    <div className="space-y-2">
+                      <ProductSearch cityId={cityId} onSelect={(product) => handleProductSelect(list.id, product)} />
+                      <button type="button" onClick={() => setAddingToListId(null)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                        <X size={14} /> ביטול הוספה
+                      </button>
+                    </div>
                   ) : (
-                    <button onClick={() => setAddingToListId(list.id)} className="text-blue-600 text-sm hover:text-blue-800 flex items-center gap-1"><Plus size={16} /> הוסיפו מוצר לרשימה</button>
+                    <button type="button" onClick={() => setAddingToListId(list.id)} className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-blue-600 hover:bg-blue-50 hover:text-blue-800"><Plus size={16} /> הוסיפו מוצר לרשימה</button>
                   )}
                 </div>
               </div>

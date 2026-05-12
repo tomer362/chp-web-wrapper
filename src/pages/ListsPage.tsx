@@ -16,7 +16,7 @@ export function ListsPage() {
     <div className="space-y-4">
       <div className="bg-white rounded-xl border shadow-sm p-4">
         <label className="block text-xs text-gray-500 mb-1.5 font-medium">איזור להשוואה</label>
-        <LocationSearch onSelect={(a) => setAddress(a)} />
+        <LocationSearch initialLabel={address.label} onSelect={(a) => setAddress(a)} />
       </div>
       <GroceryListPanel onCompareList={(id) => setComparingListId(id)} cityId={address.city_id} />
     </div>
