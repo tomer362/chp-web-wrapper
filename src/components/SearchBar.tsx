@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useId } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useEffect, useId } from "react";
 import { Search, X, Loader } from "lucide-react";
 
 export interface SearchItem {
@@ -20,49 +19,16 @@ interface Props {
   renderItem?: (item: SearchItem) => React.ReactNode;
 }
 
-interface DropdownStyle {
-  top: number;
-  left: number;
-  width: number;
-  maxHeight: number;
-}
-
-const DROPDOWN_GAP = 6;
-const MIN_DROPDOWN_HEIGHT = 160;
 const MAX_DROPDOWN_HEIGHT = 320;
 
 export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect, onClose, onOpen, initialText = "", renderItem }: Props) {
   const [text, setText] = useState(initialText);
   const [focusedIdx, setFocusedIdx] = useState(-1);
-  const [dropdownStyle, setDropdownStyle] = useState<DropdownStyle | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLUListElement>(null);
   const listboxId = useId();
   const isDropdownOpen = open && items.length > 0;
-
-  const updateDropdownPosition = () => {
-    const anchor = ref.current;
-    if (!anchor) return;
-
-    const rect = anchor.getBoundingClientRect();
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-    const spaceBelow = viewportHeight - rect.bottom - DROPDOWN_GAP - 8;
-    const spaceAbove = rect.top - DROPDOWN_GAP - 8;
-    const showAbove = spaceBelow < MIN_DROPDOWN_HEIGHT && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(MIN_DROPDOWN_HEIGHT, showAbove ? spaceAbove : spaceBelow);
-    const maxHeight = Math.min(MAX_DROPDOWN_HEIGHT, availableHeight);
-
-    const width = Math.min(Math.max(rect.width, 260), viewportWidth - 16);
-
-    setDropdownStyle({
-      top: showAbove ? Math.max(8, rect.top - DROPDOWN_GAP - maxHeight) : rect.bottom + DROPDOWN_GAP,
-      left: Math.min(Math.max(8, rect.left), Math.max(8, viewportWidth - width - 8)),
-      width,
-      maxHeight,
-    });
-  };
 
   useEffect(() => {
     setText(initialText);
@@ -77,27 +43,6 @@ export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  useLayoutEffect(() => {
-    if (!isDropdownOpen) return;
-    updateDropdownPosition();
-  }, [isDropdownOpen, items.length, text]);
-
-  useEffect(() => {
-    if (!isDropdownOpen) return;
-
-    window.addEventListener("resize", updateDropdownPosition);
-    window.addEventListener("scroll", updateDropdownPosition, true);
-    window.visualViewport?.addEventListener("resize", updateDropdownPosition);
-    window.visualViewport?.addEventListener("scroll", updateDropdownPosition);
-
-    return () => {
-      window.removeEventListener("resize", updateDropdownPosition);
-      window.removeEventListener("scroll", updateDropdownPosition, true);
-      window.visualViewport?.removeEventListener("resize", updateDropdownPosition);
-      window.visualViewport?.removeEventListener("scroll", updateDropdownPosition);
-    };
-  }, [isDropdownOpen]);
 
   useEffect(() => {
     if (focusedIdx >= items.length) setFocusedIdx(items.length - 1);
@@ -140,14 +85,14 @@ export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect
     }
   };
 
-  const dropdown = isDropdownOpen && dropdownStyle ? (
+  const dropdown = isDropdownOpen ? (
     <ul
       id={listboxId}
       role="listbox"
       dir="rtl"
       ref={dropdownRef}
-      className="fixed z-[1000] overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-2xl ring-1 ring-black/5 overscroll-contain"
-      style={dropdownStyle}
+      className="absolute left-0 right-0 top-full z-50 mt-1 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white py-1 shadow-2xl ring-1 ring-black/5"
+      style={{ maxHeight: MAX_DROPDOWN_HEIGHT }}
     >
       {items.map((item, i) => (
         <li
@@ -201,7 +146,7 @@ export function SearchBar({ placeholder, items, loading, open, onQuery, onSelect
           </button>
         )}
       </div>
-      {dropdown ? createPortal(dropdown, document.body) : null}
+      {dropdown}
     </div>
   );
 }

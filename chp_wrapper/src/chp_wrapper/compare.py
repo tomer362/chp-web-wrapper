@@ -14,11 +14,17 @@ def _strip_zw(text: str) -> str:
 def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
     selector = selector.strip()
     props = props.strip()
-    display_none = "display:none" in props.replace(" ", "")
+    display_none = "display:none" in props.replace(" ", "").lower()
+
+    # CHP injects decoy letters into result cells and hides them with CSS such as
+    # [data-x="abc"] { display: none }. Parse only those visibility rules and
+    # apply them recursively when extracting cell text.
+    data_attr = r"[\w-]+"
+    data_value = r"[^\"\']+"
 
     # Pattern: #ID[data-ATTR="VALUE"]
     m = re.match(
-        r'^#(\w+)\[data-(\w+)="(\w+)"\]$', selector, re.I
+        rf'^#([\w-]+)\[data-({data_attr})=["\']({data_value})["\']\]$', selector, re.I
     )
     if m:
         return {
@@ -32,7 +38,7 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
 
     # Pattern: tag[data-ATTR="VALUE"]
     m = re.match(
-        r'^(\w+)\[data-(\w+)="(\w+)"\]$', selector, re.I
+        rf'^([\w-]+)\[data-({data_attr})=["\']({data_value})["\']\]$', selector, re.I
     )
     if m:
         return {
@@ -46,7 +52,7 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
 
     # Pattern: [data-ATTR="VALUE"]
     m = re.match(
-        r'^\[data-(\w+)="(\w+)"\]$', selector, re.I
+        rf'^\[data-({data_attr})=["\']({data_value})["\']\]$', selector, re.I
     )
     if m:
         return {
@@ -65,10 +71,11 @@ def _parse_css_rules(html: str) -> list[dict]:
     rules = []
     for m in re.finditer(r"<style[^>]*>(.*?)</style>", html, re.DOTALL | re.I):
         css_text = m.group(1)
-        for rule_text in re.finditer(r"([^{]+)\{([^}]+)\}", css_text):
-            rule = _css_selector_to_rule(rule_text.group(1), rule_text.group(2))
-            if rule:
-                rules.append(rule)
+        for rule_text in re.finditer(r"([^{}]+)\{([^}]+)\}", css_text):
+            for selector in rule_text.group(1).split(","):
+                rule = _css_selector_to_rule(selector, rule_text.group(2))
+                if rule:
+                    rules.append(rule)
     return rules
 
 
@@ -93,22 +100,29 @@ def _element_visible(
     return not best["display_none"]
 
 
+def _data_attrs(tag: Tag) -> dict[str, str]:
+    attrs: dict[str, str] = {}
+    for key, val in tag.attrs.items():
+        if key.lower().startswith("data-"):
+            attrs[key.lower()] = " ".join(val) if isinstance(val, list) else str(val)
+    return attrs
+
+
+def _extract_visible_text(node: Tag | NavigableString, rules: list[dict]) -> str:
+    if isinstance(node, NavigableString):
+        return _strip_zw(str(node))
+
+    if node.name in {"script", "style"}:
+        return ""
+
+    if not _element_visible(node.name, _data_attrs(node), node.get("id"), rules):
+        return ""
+
+    return "".join(_extract_visible_text(child, rules) for child in node.children)
+
+
 def _extract_cell_text(cell: Tag, rules: list[dict]) -> str:
-    parts: list[str] = []
-    for node in cell.children:
-        if isinstance(node, NavigableString):
-            parts.append(_strip_zw(str(node)))
-        elif isinstance(node, Tag):
-            el_id = node.get("id")
-            el_attrs = {}
-            for key, val in node.attrs.items():
-                if key.lower().startswith("data-"):
-                    el_attrs[key.lower()] = val
-            if _element_visible(node.name, el_attrs, el_id, rules):
-                text = _strip_zw(node.get_text())
-                if text:
-                    parts.append(text)
-    return "".join(parts).strip()
+    return _extract_visible_text(cell, rules).strip()
 
 
 def _clean_url(text: str) -> str:

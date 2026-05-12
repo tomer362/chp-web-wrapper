@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Trash2, CheckSquare, Square, ShoppingCart, ListChecks, X } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, ListChecks, X } from "lucide-react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { ProductSearch } from "./ProductSearch";
 import type { ProductResult } from "../api/client";
@@ -29,6 +29,8 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
         productName: product.parts?.name_and_contents || product.label,
         barcode: product.barcode,
         quantity: 1,
+        packSize: product.parts?.pack_size,
+        manufacturerAndBarcode: product.parts?.manufacturer_and_barcode,
       });
       setAddingToListId(null);
       setExpanded(listId);
@@ -95,23 +97,28 @@ export function GroceryListPanel({ onCompareList, cityId }: Props) {
                 )}
 
                 {list.items.map((item) => (
-                  <div key={item.id} className="group flex items-center gap-2 rounded-lg py-1">
-                    <button type="button" className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100" onClick={() => updateItem(list.id, item.id, { checked: !item.checked })} aria-label={item.checked ? "סמן כמוצר שלא נקנה" : "סמן כמוצר שנקנה"}>
-                      {item.checked ? <CheckSquare size={20} className="text-green-500" /> : <Square size={20} className="text-gray-400" />}
-                    </button>
-                    <span className={`min-w-0 flex-1 truncate text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-700"}`}>{item.productName}</span>
+                  <div key={item.id} className="group grid gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center sm:bg-transparent sm:p-2">
+                    <div className="min-w-0 text-right">
+                      <div className="whitespace-normal break-words text-sm font-medium leading-5 text-gray-800">{item.productName}</div>
+                      {(item.packSize || item.manufacturerAndBarcode) && (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                          {item.packSize && <span>כמות/יחידה: {item.packSize}</span>}
+                          {item.manufacturerAndBarcode && <span>{item.manufacturerAndBarcode}</span>}
+                        </div>
+                      )}
+                    </div>
                     <input
                       type="number"
                       min={1}
                       inputMode="numeric"
                       dir="ltr"
                       aria-label={`כמות עבור ${item.productName}`}
-                      className="w-16 rounded-lg border border-gray-200 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-20 rounded-lg border border-gray-200 bg-white py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={item.quantity}
                       onChange={(e) => updateItem(list.id, item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
                     />
-                    <span className="shrink-0 text-xs text-gray-400">יח'</span>
-                    <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="rounded p-1 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
+                    <span className="shrink-0 text-xs text-gray-500">יחידות לקנייה</span>
+                    <button type="button" onClick={() => removeItem(list.id, item.id)} aria-label={`הסר את ${item.productName}`} className="justify-self-start rounded p-1.5 text-gray-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"><Trash2 size={16} /></button>
                   </div>
                 ))}
 
