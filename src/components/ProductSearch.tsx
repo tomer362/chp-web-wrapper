@@ -5,11 +5,12 @@ import { searchProducts, type ProductResult } from "../api/client";
 
 interface Props {
   cityId: string;
+  streetId?: string;
   onSelect: (item: ProductResult) => void;
 }
 
-export function ProductSearch({ cityId, onSelect }: Props) {
-  const fetchFn = useCallback((q: string) => searchProducts(q, cityId), [cityId]);
+export function ProductSearch({ cityId, streetId = "0", onSelect }: Props) {
+  const fetchFn = useCallback((q: string) => searchProducts(q, cityId, streetId), [cityId, streetId]);
   const ac = useAutocomplete(fetchFn, 2);
 
   const items: SearchItem[] = ac.results.map((r) => ({ label: r.label, value: r.barcode }));

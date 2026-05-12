@@ -48,7 +48,7 @@ export function HomePage() {
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">מוצר</label>
-            <ProductSearch cityId={address?.city_id || "0"} onSelect={(p) => setProduct(p)} />
+            <ProductSearch cityId={address?.city_id || "0"} streetId={address?.street_id || "0"} onSelect={(p) => setProduct(p)} />
           </div>
           <button onClick={handleCompare} disabled={!address || !product || loading} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-40 flex items-center gap-2 h-[42px]">
             {loading ? <Loader size={18} className="animate-spin" /> : <Search size={18} />} בדוק מחיר

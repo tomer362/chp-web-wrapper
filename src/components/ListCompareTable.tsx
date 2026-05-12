@@ -1,13 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGroceryLists } from "../context/GroceryListsContext";
 import { comparePrices, type CompareResult, type StoreOffer } from "../api/client";
 import { Loader, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 
 interface Props {
-  listId: string;
+  listId: string | null;
   cityId: string;
   streetId: string;
-  onBack: () => void;
+  addressLabel: string;
 }
 
 interface ItemResult {
@@ -44,29 +44,48 @@ function displayLocation(store: Pick<BasketSummary, "address" | "websiteUrl">) {
   return store.address || store.websiteUrl || "—";
 }
 
-export function ListCompareTable({ listId, cityId, streetId, onBack }: Props) {
+export function ListCompareTable({ listId, cityId, streetId, addressLabel }: Props) {
   const { getList } = useGroceryLists();
-  const list = getList(listId);
+  const list = listId ? getList(listId) : undefined;
   const [results, setResults] = useState<ItemResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const runCompare = async () => {
-    if (!list) return;
-    setLoading(true);
-    const out: ItemResult[] = [];
+  useEffect(() => {
+    let cancelled = false;
 
-    for (const item of list.items) {
-      try {
-        const r = await comparePrices(item.barcode || "", item.productName, cityId, streetId);
-        out.push({ productName: item.productName, quantity: item.quantity, result: r });
-      } catch {
-        out.push({ productName: item.productName, quantity: item.quantity, result: null, error: "לא נמצא" });
+    async function runCompare() {
+      if (!list || list.items.length === 0) {
+        setResults([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const out: ItemResult[] = [];
+
+      for (const item of list.items) {
+        if (cancelled) return;
+
+        try {
+          const r = await comparePrices(item.barcode || "", item.productName, cityId, streetId);
+          out.push({ productName: item.productName, quantity: item.quantity, result: r });
+        } catch {
+          out.push({ productName: item.productName, quantity: item.quantity, result: null, error: "לא נמצא" });
+        }
+      }
+
+      if (!cancelled) {
+        setResults(out);
+        setLoading(false);
       }
     }
 
-    setResults(out);
-    setLoading(false);
-  };
+    runCompare();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [list, cityId, streetId]);
 
   const basketSummaries = useMemo(() => {
     const stores = new Map<string, BasketStore>();
@@ -119,18 +138,30 @@ export function ListCompareTable({ listId, cityId, streetId, onBack }: Props) {
 
   const unavailableProducts = results.filter((item) => !item.result).map((item) => item.productName);
 
+  if (!listId) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-center text-sm text-gray-400">
+        בחרו רשימת קניות עם מוצרים כדי לראות השוואת סל כאן, בלי מעבר למסך נוסף.
+      </div>
+    );
+  }
+
   if (!list) return <div className="text-center py-12 text-gray-500">רשימה לא נמצאה</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-4 rounded-2xl border bg-white p-4 shadow-sm" aria-live="polite">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <button onClick={onBack} className="text-sm text-blue-600 hover:underline">&larr; חזרה</button>
-          <h2 className="text-xl font-bold mt-1">{list.name}</h2>
+          <h2 className="text-xl font-bold text-gray-900">השוואת סל: {list.name}</h2>
+          <p className="text-sm text-gray-500">ההשוואה רצה אוטומטית עבור {addressLabel} ומתעדכנת כשמשנים איזור.</p>
         </div>
-        <button onClick={runCompare} disabled={loading || list.items.length === 0} className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2">
-          {loading && <Loader size={18} className="animate-spin" />} חשב סל ({list.items.length})
-        </button>
+        <div className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+          {loading ? (
+            <span className="inline-flex items-center gap-2"><Loader size={16} className="animate-spin" /> מחשב סל...</span>
+          ) : (
+            <span>{list.items.length} מוצרים</span>
+          )}
+        </div>
       </div>
 
       {list.items.length === 0 && (
@@ -140,14 +171,14 @@ export function ListCompareTable({ listId, cityId, streetId, onBack }: Props) {
         </div>
       )}
 
-      {results.length > 0 && basketSummaries.length === 0 && (
+      {!loading && results.length > 0 && basketSummaries.length === 0 && (
         <div className="rounded-xl border bg-white p-5 text-center text-sm text-gray-500 shadow-sm">
           לא נמצאו חנויות שמספקות את המוצרים ברשימה.
         </div>
       )}
 
       {basketSummaries.length > 0 && (
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div>
           <div className="mb-4">
             <h3 className="text-lg font-bold text-gray-900">סה״כ סל לפי חנות</h3>
             <p className="text-sm text-gray-500">מוצגות חנויות עם מחיר סל כולל. אם חסרים מוצרים בחנות, הם מופיעים מתחת למחיר.</p>
