@@ -27,6 +27,21 @@ def _css_selector_to_rule(selector: str, props: str) -> Optional[dict]:
     data_attr = r"[\w-]+"
     data_value = r"[^\"\']+"
 
+    # Pattern: tag#ID[data-ATTR="VALUE"]
+    m = re.match(
+        rf'^([\w-]+)#([\w-]+)\[data-({data_attr})=["\']({data_value})["\']\]$', selector, re.I
+    )
+    if m:
+        return {
+            "tag": m.group(1).lower(),
+            "attr_name": f"data-{m.group(3)}".lower(),
+            "attr_value": m.group(4),
+            "has_id": m.group(2),
+            "display_none": hidden,
+            **base_rule,
+            "specificity": 4,
+        }
+
     # Pattern: #ID[data-ATTR="VALUE"]
     m = re.match(
         rf'^#([\w-]+)\[data-({data_attr})=["\']({data_value})["\']\]$', selector, re.I
@@ -90,6 +105,7 @@ def _parse_css_rules(html: str) -> list[dict]:
             for selector in rule_text.group(1).split(","):
                 rule = _css_selector_to_rule(selector, rule_text.group(2))
                 if rule:
+                    rule["order"] = len(rules)
                     rules.append(rule)
     return rules
 
@@ -113,7 +129,7 @@ def _element_visible(
     if not matching:
         return True
 
-    best = max(matching, key=lambda r: r["specificity"])
+    best = max(matching, key=lambda r: (r["specificity"], r.get("order", 0)))
     return not best["display_none"]
 
 
@@ -135,6 +151,8 @@ def _has_hidden_inline_style(node: Tag) -> bool:
 
 def _matches_hidden_selector(node: Tag, rules: list[dict]) -> bool:
     for rule in rules:
+        if "attr_name" in rule:
+            continue
         if not rule.get("hidden") or not rule.get("selector"):
             continue
         try:
